@@ -3,6 +3,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "../db/schema";
 import { deriveHealthFromEvent } from "../health/derivation";
 import { findProjectById, updateProject } from "../projects/repository";
+import { recordIncidentForEvent, resolveIncidentForEvent } from "../incidents/usecases";
 import { findTask, markEventFailed, markEventProcessed, upsertTask } from "./repository";
 import { projectTaskEvent } from "../tasks/projection";
 
@@ -24,12 +25,22 @@ export async function processClaimedEvent(db: Db, event: typeof schema.events.$i
       if (!project) throw new Error("event project no longer exists");
       const healthChanges = deriveHealthFromEvent(project, { type: event.type, occurredAt: event.occurredAt, data: event.data });
       if (Object.keys(healthChanges).length > 0) await updateProject(tx, project.id, healthChanges);
+      const currentProject = await findProjectById(tx, event.projectId);
+      if (!currentProject) throw new Error("event project no longer exists");
+      await resolveIncidentForEvent(tx, currentProject, { id: event.id, type: event.type, occurredAt: event.occurredAt, data: event.data }, `Recovered by ${event.type}`);
+      await recordIncidentForEvent(tx, currentProject, { id: event.id, type: event.type, occurredAt: event.occurredAt, data: event.data });
       const processed = await markEventProcessed(tx, event.id, event.claimToken!);
       if (!processed) throw new Error("event claim was lost before completion");
     });
     return { status: "processed" as const };
   } catch (error) {
-    await markEventFailed(db, event.id, event.claimToken, event.processingAttempts, error, MAX_PROCESSING_ATTEMPTS);
+    await db.transaction(async (tx) => {
+      const failed = await markEventFailed(tx, event.id, event.claimToken!, event.processingAttempts, error, MAX_PROCESSING_ATTEMPTS);
+      if (failed?.quarantinedAt) {
+        const project = await findProjectById(tx, event.projectId);
+        if (project) await recordIncidentForEvent(tx, project, { id: event.id, type: "event.quarantined", occurredAt: new Date(), data: { eventId: event.eventId, originalType: event.type } });
+      }
+    });
     return { status: event.processingAttempts >= MAX_PROCESSING_ATTEMPTS ? "quarantined" as const : "retryable_failure" as const, error };
   }
 }

@@ -2,6 +2,7 @@ import { loadEnv } from "../config/env";
 import { createConfiguredDb } from "../db/client";
 import { claimPendingEvent } from "./repository";
 import { processClaimedEvent } from "./processor";
+import { dispatchOneTelegramNotification } from "../notifications/telegram";
 
 export async function startWorker() {
   const env = loadEnv();
@@ -17,6 +18,7 @@ export async function startWorker() {
       const event = await claimPendingEvent(db, workerId);
       if (event) await processClaimedEvent(db, event);
       else await new Promise((resolve) => setTimeout(resolve, 1000));
+      await dispatchOneTelegramNotification(db);
     }
   } finally {
     await pool.end();

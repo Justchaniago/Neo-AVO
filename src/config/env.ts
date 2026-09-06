@@ -4,6 +4,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().url().optional(),
   DATABASE_SSL: z.enum(["disable", "require"]).default("require"),
+  TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+  TELEGRAM_CHAT_ID: z.string().min(1).optional(),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

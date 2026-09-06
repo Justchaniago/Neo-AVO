@@ -3,11 +3,12 @@ import pg from "pg";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 
 import { createDb } from "../../src/db/client";
-import { events, projectCredentials, projects, tasks } from "../../src/db/schema";
+import { events, incidentEvents, incidents, notifications, projectCredentials, projects, tasks } from "../../src/db/schema";
 import { registerProject, rotateProjectCredential } from "../../src/projects/usecases";
 import { persistEventBatch } from "../../src/events/usecases";
 import { claimPendingEvent } from "../../src/worker/repository";
 import { processClaimedEvent } from "../../src/worker/processor";
+import { acknowledgeIncident, recordIncidentForEvent } from "../../src/incidents/usecases";
 import { eq, isNull } from "drizzle-orm";
 
 const enabled = process.env.RUN_POSTGRES_INTEGRATION === "1" && Boolean(process.env.PG_INTEGRATION_DATABASE_URL);
@@ -82,5 +83,26 @@ suite("real PostgreSQL M3/M4 integration", () => {
     expect(quarantined.quarantinedAt).not.toBeNull();
     expect(quarantined.processedAt).toBeNull();
     expect(quarantined.processingError).toContain("taskId");
+    expect((await db.select().from(incidents).where(eq(incidents.type, "POISON_EVENT")))).toHaveLength(1);
+  });
+
+  it("deduplicates deterministic incidents, preserves evidence, and acknowledges", async () => {
+    await db.update(events).set({ processedAt: new Date() }).where(isNull(events.processedAt));
+    await persistEventBatch(db, [{ ...taskEvent("evt-incident"), type: "task.failed", data: { taskId: "incident-task", message: "provider timeout" } }], projectId);
+    const claimed = await claimPendingEvent(db, "integration-incident");
+    await processClaimedEvent(db, claimed!);
+    await persistEventBatch(db, [{ ...taskEvent("evt-incident-2"), type: "task.failed", data: { taskId: "incident-task-2", message: "provider timeout" } }], projectId);
+    const secondClaim = await claimPendingEvent(db, "integration-incident-2");
+    await processClaimedEvent(db, secondClaim!);
+    const source = (await db.select().from(events).where(eq(events.id, claimed!.id)))[0];
+    const project = (await db.select().from(projects).where(eq(projects.id, projectId)))[0];
+    await recordIncidentForEvent(db, project, { id: source.id, type: source.type, occurredAt: source.occurredAt, data: source.data });
+    const rows = await db.select().from(incidents).where(eq(incidents.projectId, projectId));
+    expect(rows.filter((row) => row.type === "TASK_FAILURE")).toHaveLength(1);
+    expect(rows.find((row) => row.type === "TASK_FAILURE")?.occurrenceCount).toBe(2);
+    expect(await db.select().from(incidentEvents).where(eq(incidentEvents.incidentId, rows.find((row) => row.type === "TASK_FAILURE")!.id))).toHaveLength(2);
+    expect(await db.select().from(notifications).where(eq(notifications.incidentId, rows.find((row) => row.type === "TASK_FAILURE")!.id))).toHaveLength(1);
+    const acknowledged = await acknowledgeIncident(db, rows.find((row) => row.type === "TASK_FAILURE")!.id);
+    expect(acknowledged?.state).toBe("ACKNOWLEDGED");
   });
 });

@@ -43,6 +43,13 @@
       "when": 1788680108753,
       "tag": "0005_happy_photon",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788686320110,
+      "tag": "0006_dapper_surge",
+      "breakpoints": true
     }
   ]
 }

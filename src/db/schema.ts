@@ -92,3 +92,61 @@ export const tasks = pgTable(
   },
   (table) => ({ taskScopeIdx: uniqueIndex("tasks_project_environment_external_id_idx").on(table.projectId, table.environment, table.externalTaskId) }),
 );
+
+export const incidents = pgTable(
+  "incidents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    environment: text("environment").notNull(),
+    type: text("type").notNull(),
+    dedupKey: text("dedup_key").notNull(),
+    severity: text("severity").notNull(),
+    state: text("state").notNull().default("OPEN"),
+    reason: text("reason").notNull(),
+    dependencyKey: text("dependency_key"),
+    taskId: text("task_id"),
+    errorSignature: text("error_signature"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    occurrenceCount: integer("occurrence_count").notNull().default(1),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolutionReason: text("resolution_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({ incidentDedupIdx: uniqueIndex("incidents_open_dedup_idx").on(table.projectId, table.environment, table.dedupKey, table.state) }),
+);
+
+export const incidentEvents = pgTable(
+  "incident_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    incidentId: uuid("incident_id").notNull().references(() => incidents.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+    linkedAt: timestamp("linked_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({ incidentEventIdx: uniqueIndex("incident_events_incident_event_idx").on(table.incidentId, table.eventId) }),
+);
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    incidentId: uuid("incident_id").notNull().references(() => incidents.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull().default("telegram"),
+    kind: text("kind").notNull(),
+    severity: text("severity").notNull(),
+    status: text("status").notNull().default("PENDING"),
+    message: text("message").notNull(),
+    deliveryAttempts: integer("delivery_attempts").notNull().default(0),
+    lastError: text("last_error"),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    claimToken: text("claim_token"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({ notificationKindIdx: uniqueIndex("notifications_incident_kind_idx").on(table.incidentId, table.kind) }),
+);

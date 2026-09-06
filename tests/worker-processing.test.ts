@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ findTask: vi.fn(), findProjectById: vi.fn(), markEventFailed: vi.fn(), markEventProcessed: vi.fn(), updateProject: vi.fn(), upsertTask: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findTask: vi.fn(), findProjectById: vi.fn(), markEventFailed: vi.fn(), markEventProcessed: vi.fn(), recordIncidentForEvent: vi.fn(), resolveIncidentForEvent: vi.fn(), updateProject: vi.fn(), upsertTask: vi.fn() }));
 vi.mock("../src/worker/repository", () => mocks);
 vi.mock("../src/projects/repository", () => ({ findProjectById: mocks.findProjectById, updateProject: mocks.updateProject }));
+vi.mock("../src/incidents/usecases", () => ({ recordIncidentForEvent: mocks.recordIncidentForEvent, resolveIncidentForEvent: mocks.resolveIncidentForEvent }));
 
 import { processClaimedEvent } from "../src/worker/processor";
 

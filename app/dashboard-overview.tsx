@@ -16,7 +16,7 @@ export function DashboardOverview() {
       {error && <p>{error}</p>}
       {!projects && !error && <p className="muted">Loading projects…</p>}
       {projects && <section className="grid">{projects.map((project) => <article className="card" key={project.id}><p className="eyebrow">{project.environment}</p><h2><a href={`/projects/${project.id}`}>{project.name}</a></h2><p className="muted">{project.slug} · {project.runtimeMode} · {project.healthStrategy}</p><p className={`state ${project.availability.toLowerCase()}`}>Availability: {project.availability}</p><p className={`state ${project.operationalHealth.toLowerCase()}`}>Health: {project.operationalHealth}</p><p className="muted">Last activity: {project.lastOperationalAt ? new Date(project.lastOperationalAt).toLocaleString() : "No evidence"}</p></article>)}</section>}
-      <p className="muted">Incidents will appear here after the M5 incident engine.</p>
+      <p><a href="/incidents">View incidents</a></p>
     </main>
   );
 }
