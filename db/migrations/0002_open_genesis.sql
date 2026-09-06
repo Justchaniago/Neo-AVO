@@ -1,0 +1,2 @@
+DROP INDEX "project_credentials_project_environment_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "project_credentials_project_environment_idx" ON "project_credentials" USING btree ("project_id","environment") WHERE "project_credentials"."revoked_at" is null;
