@@ -4,7 +4,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { projectCredentials, projects } from "../db/schema";
 import * as schema from "../db/schema";
 
-type Db = NodePgDatabase<typeof schema>;
+type Db = Pick<NodePgDatabase<typeof schema>, "insert" | "select" | "update">;
 
 export async function insertProject(db: Db, values: typeof projects.$inferInsert) {
   const [project] = await db.insert(projects).values(values).returning();

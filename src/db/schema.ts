@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 /** M0 keeps only the database connectivity seam; domain tables start in M1. */
 export const healthChecks = pgTable("health_checks", {
@@ -33,3 +33,20 @@ export const projectCredentials = pgTable(
   },
   (table) => ({ projectEnvironmentIdx: uniqueIndex("project_credentials_project_environment_idx").on(table.projectId, table.environment).where(sql`${table.revokedAt} is null`) }),
 );
+
+export const events = pgTable("events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: text("event_id").notNull().unique(),
+  schemaVersion: integer("schema_version").notNull(),
+  projectId: uuid("project_id").notNull().references(() => projects.id),
+  environment: text("environment").notNull(),
+  type: text("type").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  sequence: text("sequence"),
+  data: jsonb("data").notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  processingAttempts: integer("processing_attempts").notNull().default(0),
+  processingError: text("processing_error"),
+  quarantinedAt: timestamp("quarantined_at", { withTimezone: true }),
+});

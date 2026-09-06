@@ -8,10 +8,12 @@ import type { ProjectConfig, ProjectUpdate } from "./types";
 type Db = NodePgDatabase<typeof schema>;
 
 export async function registerProject(db: Db, config: ProjectConfig) {
-  const project = await insertProject(db, config);
-  const generated = createProjectToken();
-  await insertCredential(db, { projectId: project.id, environment: project.environment, tokenPrefix: generated.prefix, tokenHash: generated.hash });
-  return { project, token: generated.token };
+  return db.transaction(async (tx) => {
+    const project = await insertProject(tx, config);
+    const generated = createProjectToken();
+    await insertCredential(tx, { projectId: project.id, environment: project.environment, tokenPrefix: generated.prefix, tokenHash: generated.hash });
+    return { project, token: generated.token };
+  });
 }
 
 export async function getProject(db: Db, projectId: string) {
@@ -30,7 +32,9 @@ export async function authenticateProject(db: Db, projectId: string, environment
 
 export async function rotateProjectCredential(db: Db, projectId: string, environment: string) {
   const generated = createProjectToken();
-  await revokeCredentials(db, projectId, environment);
-  await insertCredential(db, { projectId, environment, tokenPrefix: generated.prefix, tokenHash: generated.hash });
+  await db.transaction(async (tx) => {
+    await revokeCredentials(tx, projectId, environment);
+    await insertCredential(tx, { projectId, environment, tokenPrefix: generated.prefix, tokenHash: generated.hash });
+  });
   return generated.token;
 }
