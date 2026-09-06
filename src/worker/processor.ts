@@ -6,6 +6,7 @@ import { findProjectById, updateProject } from "../projects/repository";
 import { recordIncidentForEvent, resolveIncidentForEvent } from "../incidents/usecases";
 import { findTask, markEventFailed, markEventProcessed, upsertTask } from "./repository";
 import { projectTaskEvent } from "../tasks/projection";
+import { log } from "../observability/logger";
 
 type Db = NodePgDatabase<typeof schema>;
 export const MAX_PROCESSING_ATTEMPTS = 3;
@@ -34,9 +35,11 @@ export async function processClaimedEvent(db: Db, event: typeof schema.events.$i
     });
     return { status: "processed" as const };
   } catch (error) {
+    log("error", "worker", "event_processing_failed", { eventId: event.eventId, projectId: event.projectId, environment: event.environment, errorClass: error instanceof Error ? error.name : "unknown" });
     await db.transaction(async (tx) => {
       const failed = await markEventFailed(tx, event.id, event.claimToken!, event.processingAttempts, error, MAX_PROCESSING_ATTEMPTS);
       if (failed?.quarantinedAt) {
+        log("error", "worker", "event_quarantined", { eventId: event.eventId, projectId: event.projectId, environment: event.environment });
         const project = await findProjectById(tx, event.projectId);
         if (project) await recordIncidentForEvent(tx, project, { id: event.id, type: "event.quarantined", occurredAt: new Date(), data: { eventId: event.eventId, originalType: event.type } });
       }

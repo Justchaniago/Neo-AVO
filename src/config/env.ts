@@ -17,3 +17,13 @@ export type AppEnv = z.infer<typeof envSchema>;
 export function loadEnv(source: Record<string, string | undefined> = process.env): AppEnv {
   return envSchema.parse(source);
 }
+
+export function validateProductionEnv(source: Record<string, string | undefined> = process.env, options: { requireTelegram?: boolean; requireVertex?: boolean } = {}) {
+  const env = loadEnv({ ...source, NODE_ENV: "production" });
+  const missing: string[] = [];
+  if (!env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (options.requireTelegram && (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID)) missing.push("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID");
+  if (options.requireVertex && !env.GOOGLE_CLOUD_PROJECT) missing.push("GOOGLE_CLOUD_PROJECT");
+  if (missing.length) throw new Error(`Missing production environment: ${[...new Set(missing)].join(", ")}`);
+  return env;
+}

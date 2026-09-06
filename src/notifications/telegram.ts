@@ -2,6 +2,7 @@ import { loadEnv } from "../config/env";
 import { claimPendingNotification, markNotificationFailed, markNotificationSent } from "./repository";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "../db/schema";
+import { log } from "../observability/logger";
 
 type Db = NodePgDatabase<typeof schema>;
 
@@ -21,6 +22,7 @@ export async function dispatchOneTelegramNotification(db: Db) {
     return { status: "sent" as const };
   } catch (error) {
     await markNotificationFailed(db, notification.id, notification.claimToken!, error);
+    log("error", "telegram", "delivery_failed", { notificationId: notification.id, incidentId: notification.incidentId, errorClass: error instanceof Error ? error.name : "unknown" });
     return { status: "failed" as const };
   }
 }

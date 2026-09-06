@@ -6,6 +6,7 @@ import { dispatchOneTelegramNotification } from "../notifications/telegram";
 import { runOneOpsAnalysis } from "../ops/analyst";
 import { deliverOnePushCommand } from "../commands/delivery";
 import { expireCommands } from "../commands/repository";
+import { log } from "../observability/logger";
 
 export async function startWorker() {
   const env = loadEnv();
@@ -15,7 +16,7 @@ export async function startWorker() {
   const stop = () => { stopping = true; };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
-  console.log(JSON.stringify({ service: "worker", status: "ready", environment: env.NODE_ENV, workerId }));
+  log("info", "worker", "started", { environment: env.NODE_ENV, workerId });
   try {
     while (!stopping) {
       const event = await claimPendingEvent(db, workerId);
@@ -27,8 +28,9 @@ export async function startWorker() {
       await deliverOnePushCommand(db);
     }
   } finally {
+    log("info", "worker", "stopping", { workerId });
     await pool.end();
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) startWorker().catch((error: unknown) => { console.error(error); process.exitCode = 1; });
+if (import.meta.url === `file://${process.argv[1]}`) startWorker().catch((error: unknown) => { log("error", "worker", "startup_failed", { error: error instanceof Error ? error.message : "unknown" }); process.exitCode = 1; });

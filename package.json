@@ -11,6 +11,8 @@
     "test:integration": "RUN_POSTGRES_INTEGRATION=1 vitest run tests/integration",
     "worker": "tsx src/worker/index.ts",
     "vertex:smoke": "tsx scripts/vertex-smoke.ts",
+    "production:check": "tsx scripts/check-production-env.ts",
+    "command:mock": "tsx scripts/mock-command-project.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts"
   },

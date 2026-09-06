@@ -1,0 +1,21 @@
+# M8 Production Readiness Checklist
+
+- [ ] PostgreSQL uses a dedicated application user and is not public
+- [ ] Daily compressed PostgreSQL backup uploads off-host
+- [ ] Backup retention and failure detection configured
+- [ ] Restore tested into a clean database
+- [ ] Production environment validated
+- [ ] Web service supervised
+- [ ] Worker service supervised separately
+- [ ] Reverse proxy and HTTPS configured
+- [ ] Firewall exposes only 80/443 and restricted SSH
+- [ ] Neo AVO-owned GCP runtime identity configured
+- [ ] Live Vertex smoke test passed or explicitly gated
+- [ ] Live Telegram smoke test passed or explicitly gated
+- [ ] PUSH command smoke test passed or explicitly gated
+- [ ] PULL command smoke test passed or explicitly gated
+- [ ] Staging validation complete
+- [ ] Rollback procedure tested/readied
+- [ ] `neo-office.chaniago.me` validation complete
+- [ ] Event/incident/command retention policy reviewed
+- [ ] Eventual `office.chaniago.me` cutover approved

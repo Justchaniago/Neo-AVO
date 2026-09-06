@@ -1,0 +1,23 @@
+# First Project Integration Guide
+
+The project is registered through `POST /api/v1/projects`; the response contains one generated M1 credential. Store it in the project runtime secret store. Configure the project’s exact environment and declared capabilities. Credentials are scoped to that project/environment and are not interchangeable.
+
+Send only the canonical event envelope to `POST /api/v1/events` with `Authorization: Bearer <project-token>` and `X-Neo-Avo-Environment: <environment>`:
+
+```json
+{"events":[{"schemaVersion":1,"eventId":"evt_123","projectId":"<project-uuid-or-slug>","environment":"production","type":"system.heartbeat","occurredAt":"2026-09-06T00:00:00Z","data":{}}]}
+```
+
+For heartbeat strategy, emit `system.heartbeat` on the project’s configured cadence. Execution-based projects should emit task/execution telemetry supported by the event registry; on-demand projects with no active instance are not automatically offline.
+
+For PULL commands, use the M1 credential and environment header:
+
+```sh
+curl -H "Authorization: Bearer $PROJECT_TOKEN" \
+  -H "X-Neo-Avo-Environment: production" \
+  https://neo-office.chaniago.me/api/v1/commands/pending
+```
+
+Execute only the project’s own bounded capability, reject commands past `validUntil`, deduplicate by `commandId`, then call `/api/v1/commands/<commandId>/ack` and `/result` with the same credential. Poll cadence is project-owned; Neo AVO does not require long polling or a universal interval.
+
+For PUSH smoke testing, run `MOCK_COMMAND_AUTH=<random-secret> npm run command:mock` and configure a disposable PUSH project endpoint as `http://127.0.0.1:8787/commands` with that distinct secret. The adapter accepts each command ID once and returns `already_processed` on duplicate delivery; it implements no project action. The real target must provide its own authenticated endpoint and remain the execution authority.
