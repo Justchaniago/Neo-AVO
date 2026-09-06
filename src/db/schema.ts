@@ -150,3 +150,28 @@ export const notifications = pgTable(
   },
   (table) => ({ notificationKindIdx: uniqueIndex("notifications_incident_kind_idx").on(table.incidentId, table.kind) }),
 );
+
+export const opsAnalyses = pgTable(
+  "ops_analyses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    incidentId: uuid("incident_id").notNull().references(() => incidents.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("PENDING"),
+    summary: text("summary"),
+    likelyCause: text("likely_cause"),
+    confidence: integer("confidence_basis_points"),
+    impact: text("impact"),
+    recommendedActions: jsonb("recommended_actions").$type<{ capability: string; reason: string }[]>().notNull().default([]),
+    provider: text("provider").notNull().default("vertex_ai"),
+    model: text("model"),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
+    claimToken: text("claim_token"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    claimExpiresAt: timestamp("claim_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => ({ incidentCurrentIdx: uniqueIndex("ops_analyses_incident_current_idx").on(table.incidentId) }),
+);

@@ -3,7 +3,7 @@ import pg from "pg";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 
 import { createDb } from "../../src/db/client";
-import { events, incidentEvents, incidents, notifications, projectCredentials, projects, tasks } from "../../src/db/schema";
+import { events, incidentEvents, incidents, notifications, opsAnalyses, projectCredentials, projects, tasks } from "../../src/db/schema";
 import { registerProject, rotateProjectCredential } from "../../src/projects/usecases";
 import { persistEventBatch } from "../../src/events/usecases";
 import { claimPendingEvent } from "../../src/worker/repository";
@@ -102,6 +102,7 @@ suite("real PostgreSQL M3/M4 integration", () => {
     expect(rows.find((row) => row.type === "TASK_FAILURE")?.occurrenceCount).toBe(2);
     expect(await db.select().from(incidentEvents).where(eq(incidentEvents.incidentId, rows.find((row) => row.type === "TASK_FAILURE")!.id))).toHaveLength(2);
     expect(await db.select().from(notifications).where(eq(notifications.incidentId, rows.find((row) => row.type === "TASK_FAILURE")!.id))).toHaveLength(1);
+    expect(await db.select().from(opsAnalyses).where(eq(opsAnalyses.incidentId, rows.find((row) => row.type === "TASK_FAILURE")!.id))).toHaveLength(1);
     const acknowledged = await acknowledgeIncident(db, rows.find((row) => row.type === "TASK_FAILURE")!.id);
     expect(acknowledged?.state).toBe("ACKNOWLEDGED");
   });

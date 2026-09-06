@@ -3,6 +3,7 @@ import { createConfiguredDb } from "../db/client";
 import { claimPendingEvent } from "./repository";
 import { processClaimedEvent } from "./processor";
 import { dispatchOneTelegramNotification } from "../notifications/telegram";
+import { runOneOpsAnalysis } from "../ops/analyst";
 
 export async function startWorker() {
   const env = loadEnv();
@@ -19,6 +20,7 @@ export async function startWorker() {
       if (event) await processClaimedEvent(db, event);
       else await new Promise((resolve) => setTimeout(resolve, 1000));
       await dispatchOneTelegramNotification(db);
+      await runOneOpsAnalysis(db);
     }
   } finally {
     await pool.end();

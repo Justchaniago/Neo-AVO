@@ -50,6 +50,13 @@
       "when": 1788686320110,
       "tag": "0006_dapper_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788687785422,
+      "tag": "0007_deep_sauron",
+      "breakpoints": true
     }
   ]
 }

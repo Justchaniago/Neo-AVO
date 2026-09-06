@@ -4,6 +4,8 @@ import { and, eq } from "drizzle-orm";
 import * as schema from "../db/schema";
 import { createIncident, createNotification, findDeduplicatedIncident, findOpenIncidentByKey, resolveIncident, updateIncident } from "./repository";
 import { incidentTrigger, recoveryKey, shouldNotifyImmediately, type IncidentEvent, type IncidentProject } from "./types";
+import { isAnalysisEligible } from "../ops/eligibility";
+import { createAnalysisIfAbsent } from "../ops/repository";
 
 type Db = NodePgDatabase<typeof schema>;
 const DEDUP_WINDOW_MS = 15 * 60 * 1000;
@@ -18,6 +20,7 @@ export async function recordIncidentForEvent(db: Db, project: IncidentProject, e
   const existing = await findDeduplicatedIncident(db, project.id, project.environment, trigger.dedupKey, new Date(now.getTime() - DEDUP_WINDOW_MS));
   const incident = existing ? await updateIncident(db, existing.id, trigger, event.id, now) : await createIncident(db, project.id, project.environment, trigger, event.id, now);
   if (!existing && shouldNotifyImmediately(trigger.severity)) await createNotification(db, { incidentId: incident.id, kind: "initial", severity: trigger.severity, message: telegramMessage(incident) });
+  if (!existing && isAnalysisEligible(incident.severity, incident.type)) await createAnalysisIfAbsent(db, incident.id);
   return incident;
 }
 

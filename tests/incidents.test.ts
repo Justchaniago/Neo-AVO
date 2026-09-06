@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const repo = vi.hoisted(() => ({ createIncident: vi.fn(), createNotification: vi.fn(), findDeduplicatedIncident: vi.fn(), findOpenIncidentByKey: vi.fn(), resolveIncident: vi.fn(), updateIncident: vi.fn() }));
+const repo = vi.hoisted(() => ({ createAnalysisIfAbsent: vi.fn(), createIncident: vi.fn(), createNotification: vi.fn(), findDeduplicatedIncident: vi.fn(), findOpenIncidentByKey: vi.fn(), resolveIncident: vi.fn(), updateIncident: vi.fn() }));
 vi.mock("../src/incidents/repository", () => repo);
+vi.mock("../src/ops/repository", () => ({ createAnalysisIfAbsent: repo.createAnalysisIfAbsent }));
 
 import { recordIncidentForEvent, resolveIncidentForEvent } from "../src/incidents/usecases";
 import { incidentTrigger, recoveryKey, shouldNotifyImmediately } from "../src/incidents/types";
