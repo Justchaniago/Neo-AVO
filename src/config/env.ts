@@ -9,6 +9,7 @@ const envSchema = z.object({
   GOOGLE_CLOUD_PROJECT: z.string().min(1).optional(),
   VERTEX_LOCATION: z.string().min(1).default("us-central1"),
   VERTEX_MODEL: z.string().min(1).default("gemini-2.0-flash-001"),
+  COMMAND_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/).optional(),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

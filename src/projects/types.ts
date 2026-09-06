@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const runtimeModes = ["always_on", "on_demand", "scheduled", "hybrid"] as const;
 export const healthStrategies = ["heartbeat", "execution_based", "synthetic", "external"] as const;
+export const commandDeliveryModes = ["PUSH", "PULL"] as const;
 
 export const projectConfigSchema = z.object({
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).min(1).max(80),
@@ -10,6 +11,9 @@ export const projectConfigSchema = z.object({
   runtimeMode: z.enum(runtimeModes),
   healthStrategy: z.enum(healthStrategies),
   capabilities: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
+  commandDeliveryMode: z.enum(commandDeliveryModes).default("PULL"),
+  commandEndpointUrl: z.string().url().optional(),
+  commandAuthSecret: z.string().min(16).max(4096).optional(),
   criticality: z.enum(["low", "normal", "high", "critical"]).default("normal"),
   targetRtoMinutes: z.number().int().positive().max(525600).optional(),
   staleAfterSeconds: z.number().int().positive().max(31536000).default(300),
@@ -21,5 +25,5 @@ export const projectConfigSchema = z.object({
 // Project identity and credential scope are immutable in V1.
 export const projectUpdateSchema = projectConfigSchema.omit({ slug: true, environment: true }).partial();
 
-export type ProjectConfig = z.infer<typeof projectConfigSchema>;
+export type ProjectConfig = Omit<z.infer<typeof projectConfigSchema>, "commandDeliveryMode"> & { commandDeliveryMode?: (typeof commandDeliveryModes)[number] };
 export type ProjectUpdate = z.infer<typeof projectUpdateSchema>;

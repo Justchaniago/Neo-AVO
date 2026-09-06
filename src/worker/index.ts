@@ -4,6 +4,8 @@ import { claimPendingEvent } from "./repository";
 import { processClaimedEvent } from "./processor";
 import { dispatchOneTelegramNotification } from "../notifications/telegram";
 import { runOneOpsAnalysis } from "../ops/analyst";
+import { deliverOnePushCommand } from "../commands/delivery";
+import { expireCommands } from "../commands/repository";
 
 export async function startWorker() {
   const env = loadEnv();
@@ -21,6 +23,8 @@ export async function startWorker() {
       else await new Promise((resolve) => setTimeout(resolve, 1000));
       await dispatchOneTelegramNotification(db);
       await runOneOpsAnalysis(db);
+      await expireCommands(db);
+      await deliverOnePushCommand(db);
     }
   } finally {
     await pool.end();

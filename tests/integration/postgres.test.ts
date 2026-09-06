@@ -3,13 +3,14 @@ import pg from "pg";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 
 import { createDb } from "../../src/db/client";
-import { events, incidentEvents, incidents, notifications, opsAnalyses, projectCredentials, projects, tasks } from "../../src/db/schema";
+import { commands, events, incidentEvents, incidents, notifications, opsAnalyses, projectCredentials, projects, tasks } from "../../src/db/schema";
 import { registerProject, rotateProjectCredential } from "../../src/projects/usecases";
 import { persistEventBatch } from "../../src/events/usecases";
 import { claimPendingEvent } from "../../src/worker/repository";
 import { processClaimedEvent } from "../../src/worker/processor";
 import { acknowledgeIncident, recordIncidentForEvent } from "../../src/incidents/usecases";
 import { eq, isNull } from "drizzle-orm";
+import { claimPullCommands } from "../../src/commands/repository";
 
 const enabled = process.env.RUN_POSTGRES_INTEGRATION === "1" && Boolean(process.env.PG_INTEGRATION_DATABASE_URL);
 const suite = enabled ? describe : describe.skip;
@@ -105,5 +106,16 @@ suite("real PostgreSQL M3/M4 integration", () => {
     expect(await db.select().from(opsAnalyses).where(eq(opsAnalyses.incidentId, rows.find((row) => row.type === "TASK_FAILURE")!.id))).toHaveLength(1);
     const acknowledged = await acknowledgeIncident(db, rows.find((row) => row.type === "TASK_FAILURE")!.id);
     expect(acknowledged?.state).toBe("ACKNOWLEDGED");
+  });
+
+  it("persists bounded commands and isolates PULL delivery by project/environment", async () => {
+    const other = await registerProject(db, { slug: "project-b", name: "Project B", environment: "production", runtimeMode: "on_demand", healthStrategy: "external", capabilities: [], criticality: "normal", staleAfterSeconds: 60, offlineAfterSeconds: 300 });
+    await db.insert(commands).values({ commandId: "cmd-integration", projectId, environment: "production", capability: "task.retry", arguments: { taskId: "task-1" }, requestedAt: new Date(), validUntil: new Date(Date.now() + 60_000), deliveryMode: "PULL" });
+    const own = await claimPullCommands(db, projectId, "production");
+    const otherQueue = await claimPullCommands(db, other.project.id, "production");
+    expect(own).toHaveLength(1);
+    expect(own[0].commandId).toBe("cmd-integration");
+    expect(otherQueue).toHaveLength(0);
+    expect((await db.select().from(commands).where(eq(commands.commandId, "cmd-integration")))[0].status).toBe("SENT");
   });
 });
