@@ -29,6 +29,13 @@
       "when": 1788678669212,
       "tag": "0003_clumsy_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788679241809,
+      "tag": "0004_steady_doctor_faustus",
+      "breakpoints": true
     }
   ]
 }

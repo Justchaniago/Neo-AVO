@@ -49,4 +49,30 @@ export const events = pgTable("events", {
   processingAttempts: integer("processing_attempts").notNull().default(0),
   processingError: text("processing_error"),
   quarantinedAt: timestamp("quarantined_at", { withTimezone: true }),
+  claimToken: text("claim_token"),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  claimExpiresAt: timestamp("claim_expires_at", { withTimezone: true }),
 });
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    environment: text("environment").notNull(),
+    externalTaskId: text("external_task_id").notNull(),
+    type: text("type").notNull(),
+    status: text("status").notNull(),
+    currentAttempt: integer("current_attempt").notNull().default(0),
+    currentRunId: text("current_run_id"),
+    lastSequence: text("last_sequence"),
+    lastError: text("last_error"),
+    lastErrorSignature: text("last_error_signature"),
+    lastEventAt: timestamp("last_event_at", { withTimezone: true }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    metadata: jsonb("metadata").notNull().default({}),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({ taskScopeIdx: uniqueIndex("tasks_project_environment_external_id_idx").on(table.projectId, table.environment, table.externalTaskId) }),
+);
