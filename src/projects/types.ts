@@ -10,6 +10,12 @@ export const projectConfigSchema = z.object({
   runtimeMode: z.enum(runtimeModes),
   healthStrategy: z.enum(healthStrategies),
   capabilities: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
+  criticality: z.enum(["low", "normal", "high", "critical"]).default("normal"),
+  targetRtoMinutes: z.number().int().positive().max(525600).optional(),
+  staleAfterSeconds: z.number().int().positive().max(31536000).default(300),
+  offlineAfterSeconds: z.number().int().positive().max(31536000).default(900),
+  expectedIntervalSeconds: z.number().int().positive().max(31536000).optional(),
+  gracePeriodSeconds: z.number().int().nonnegative().max(31536000).optional(),
 });
 
 // Project identity and credential scope are immutable in V1.

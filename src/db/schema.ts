@@ -17,6 +17,22 @@ export const projects = pgTable("projects", {
   capabilities: jsonb("capabilities").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  availability: text("availability").notNull().default("UNKNOWN"),
+  operationalHealth: text("operational_health").notNull().default("UNKNOWN"),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  lastOperationalAt: timestamp("last_operational_at", { withTimezone: true }),
+  lastSuccessfulExecutionAt: timestamp("last_successful_execution_at", { withTimezone: true }),
+  lastExecutionAt: timestamp("last_execution_at", { withTimezone: true }),
+  lastFailureAt: timestamp("last_failure_at", { withTimezone: true }),
+  lastErrorSignature: text("last_error_signature"),
+  expectedNextExecutionAt: timestamp("expected_next_execution_at", { withTimezone: true }),
+  staleAfterSeconds: integer("stale_after_seconds").notNull().default(300),
+  offlineAfterSeconds: integer("offline_after_seconds").notNull().default(900),
+  expectedIntervalSeconds: integer("expected_interval_seconds"),
+  gracePeriodSeconds: integer("grace_period_seconds"),
+  criticality: text("criticality").notNull().default("normal"),
+  targetRtoMinutes: integer("target_rto_minutes"),
+  lastHealthEventAt: timestamp("last_health_event_at", { withTimezone: true }),
 });
 
 export const projectCredentials = pgTable(

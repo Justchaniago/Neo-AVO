@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ findTask: vi.fn(), markEventFailed: vi.fn(), markEventProcessed: vi.fn(), upsertTask: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findTask: vi.fn(), findProjectById: vi.fn(), markEventFailed: vi.fn(), markEventProcessed: vi.fn(), updateProject: vi.fn(), upsertTask: vi.fn() }));
 vi.mock("../src/worker/repository", () => mocks);
+vi.mock("../src/projects/repository", () => ({ findProjectById: mocks.findProjectById, updateProject: mocks.updateProject }));
 
 import { processClaimedEvent } from "../src/worker/processor";
 
@@ -12,7 +13,10 @@ const event = (overrides: Record<string, unknown> = {}) => ({
 const transactionalDb = { transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback({}) };
 
 describe("worker processing", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.findProjectById.mockResolvedValue({ runtimeMode: "always_on", healthStrategy: "heartbeat", availability: "UNKNOWN", operationalHealth: "UNKNOWN", staleAfterSeconds: 60, offlineAfterSeconds: 300, expectedNextExecutionAt: null, gracePeriodSeconds: null, expectedIntervalSeconds: null, lastSeenAt: null, lastOperationalAt: null, lastSuccessfulExecutionAt: null, lastExecutionAt: null, lastFailureAt: null, lastErrorSignature: null, lastHealthEventAt: null, id: "project-a" });
+  });
 
   it("projects and marks a claimed event atomically", async () => {
     mocks.findTask.mockResolvedValue(null);

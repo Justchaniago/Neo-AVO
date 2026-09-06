@@ -21,6 +21,10 @@ export async function updateProject(db: Db, id: string, values: Partial<typeof p
   return project;
 }
 
+export async function listProjects(db: Db) {
+  return db.select().from(projects).orderBy(projects.name);
+}
+
 export async function insertCredential(db: Db, values: typeof projectCredentials.$inferInsert) {
   const [credential] = await db.insert(projectCredentials).values(values).returning();
   return credential;

@@ -1,6 +1,8 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import * as schema from "../db/schema";
+import { deriveHealthFromEvent } from "../health/derivation";
+import { findProjectById, updateProject } from "../projects/repository";
 import { findTask, markEventFailed, markEventProcessed, upsertTask } from "./repository";
 import { projectTaskEvent } from "../tasks/projection";
 
@@ -18,6 +20,10 @@ export async function processClaimedEvent(db: Db, event: typeof schema.events.$i
         const projection = projectTaskEvent(current, { type: event.type, occurredAt: event.occurredAt, sequence: event.sequence, data: event.data }, event.projectId, event.environment);
         if (projection) await upsertTask(tx, projection);
       }
+      const project = await findProjectById(tx, event.projectId);
+      if (!project) throw new Error("event project no longer exists");
+      const healthChanges = deriveHealthFromEvent(project, { type: event.type, occurredAt: event.occurredAt, data: event.data });
+      if (Object.keys(healthChanges).length > 0) await updateProject(tx, project.id, healthChanges);
       const processed = await markEventProcessed(tx, event.id, event.claimToken!);
       if (!processed) throw new Error("event claim was lost before completion");
     });

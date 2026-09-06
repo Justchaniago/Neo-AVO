@@ -8,6 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:integration": "RUN_POSTGRES_INTEGRATION=1 vitest run tests/integration",
     "worker": "tsx src/worker/index.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts"
