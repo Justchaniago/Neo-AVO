@@ -118,4 +118,19 @@ suite("real PostgreSQL M3/M4 integration", () => {
     expect(otherQueue).toHaveLength(0);
     expect((await db.select().from(commands).where(eq(commands.commandId, "cmd-integration")))[0].status).toBe("SENT");
   });
+
+  it("persists, projects, and incidents for a sanitized Tele Auto operational event", async () => {
+    await db.update(events).set({ processedAt: new Date() }).where(isNull(events.processedAt));
+    const input = { schemaVersion: 1 as const, eventId: "tele-auto-effect-uncertain", projectId: "project-a", environment: "production", type: "tele_auto.run.effect_uncertain", occurredAt: "2026-09-08T01:00:00.000Z", data: { runId: "run-1", store: "PMS", domain: "PRODUCTION", errorCode: "SHEETS_TIMEOUT", message: "must not persist" } };
+    const validated = (await import("../../src/events/usecases")).validateEventBatch({ events: [input] }, { id: projectId, slug: "project-a", environment: "production" });
+    expect(validated.ok).toBe(true);
+    if (!validated.ok) return;
+    await (await import("../../src/events/usecases")).persistEventBatch(db, validated.events, projectId);
+    const claimed = await claimPendingEvent(db, "integration-tele-auto");
+    await processClaimedEvent(db, claimed!);
+    const stored = (await db.select().from(events).where(eq(events.eventId, input.eventId)))[0];
+    expect(stored.data).toEqual({ runId: "run-1", store: "PMS", domain: "PRODUCTION", errorCode: "SHEETS_TIMEOUT" });
+    expect(stored.processedAt).not.toBeNull();
+    expect(await db.select().from(incidents).where(eq(incidents.type, "TELE_AUTO_EFFECT_UNCERTAIN"))).toHaveLength(1);
+  });
 });

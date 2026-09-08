@@ -43,4 +43,10 @@ describe("deterministic incident engine", () => {
     expect(repo.resolveIncident).toHaveBeenCalledOnce();
     expect(recoveryKey(project, { id: "event-5", type: "project.started", occurredAt: now, data: {} })).toBe("project-a:production:project-offline");
   });
+
+  it("maps high-value Tele Auto facts without treating clarification as an incident", () => {
+    expect(incidentTrigger(project, { id: "event-6", type: "tele_auto.run.needs_clarification", occurredAt: now, data: { runId: "run-1" } }, now)).toBeNull();
+    expect(incidentTrigger(project, { id: "event-7", type: "tele_auto.run.effect_uncertain", occurredAt: now, data: { runId: "run-1", errorCode: "SHEETS_TIMEOUT" } }, now)).toMatchObject({ type: "TELE_AUTO_EFFECT_UNCERTAIN", severity: "CRITICAL", dedupKey: "project-a:production:tele-auto:effect-uncertain:run-1" });
+    expect(incidentTrigger(project, { id: "event-8", type: "tele_auto.sheets.schema_mismatch", occurredAt: now, data: { errorCode: "HEADER_MISSING" } }, now)).toMatchObject({ type: "TELE_AUTO_SHEETS_SCHEMA_MISMATCH", severity: "HIGH" });
+  });
 });

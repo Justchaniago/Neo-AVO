@@ -13,12 +13,14 @@ export function validateEventBatch(input: unknown, project: { id: string; slug: 
   const projectMismatch = parsed.data.events.find((event) => (event.projectId !== project.id && event.projectId !== project.slug) || event.environment !== project.environment);
   if (projectMismatch) return { ok: false as const, kind: "project_scope_mismatch", eventId: projectMismatch.eventId };
 
+  const normalizedEvents = [];
   for (const event of parsed.data.events) {
     const validation = validateEventData(event);
     if (!validation.ok) return { ok: false as const, kind: validation.error, eventId: event.eventId, details: "details" in validation ? validation.details : undefined };
+    normalizedEvents.push({ ...event, data: validation.data });
   }
 
-  return { ok: true as const, events: parsed.data.events };
+  return { ok: true as const, events: normalizedEvents };
 }
 
 export async function persistEventBatch(db: Db, events: Awaited<ReturnType<typeof eventBatchSchema.parse>>["events"], projectId: string) {

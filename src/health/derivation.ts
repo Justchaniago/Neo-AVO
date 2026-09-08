@@ -30,7 +30,7 @@ export type HealthEvent = { type: string; occurredAt: Date; data: unknown };
 function failureSignature(data: unknown) {
   if (!data || typeof data !== "object") return null;
   const record = data as Record<string, unknown>;
-  const message = typeof record.message === "string" ? record.message : typeof record.error === "string" ? record.error : null;
+  const message = typeof record.errorCode === "string" ? record.errorCode : typeof record.errorSignature === "string" ? record.errorSignature : typeof record.message === "string" ? record.message : typeof record.error === "string" ? record.error : null;
   return message ? createHash("sha256").update(message).digest("hex") : null;
 }
 
@@ -71,6 +71,15 @@ export function deriveHealthFromEvent(project: HealthProject, event: HealthEvent
   if (event.type === "task.failed" || event.type === "agent.failed" || event.type === "deployment.failed") return { ...base, lastExecutionAt: eventTime, lastFailureAt: eventTime, lastErrorSignature: failureSignature(event.data), operationalHealth: "FAILING", lastOperationalAt: eventTime, availability: "ONLINE" };
   if (event.type === "task.retrying" || event.type === "agent.blocked") return { ...base, lastExecutionAt: eventTime, operationalHealth: "DEGRADED", lastOperationalAt: eventTime, availability: "ONLINE" };
   if (event.type === "task.completed" || event.type === "agent.completed" || event.type === "deployment.completed") return { ...base, lastExecutionAt: eventTime, lastSuccessfulExecutionAt: eventTime, expectedNextExecutionAt: project.expectedIntervalSeconds ? new Date(eventTime.getTime() + project.expectedIntervalSeconds * 1000) : project.expectedNextExecutionAt, operationalHealth: "HEALTHY", lastOperationalAt: eventTime, availability: "ONLINE" };
+  if (event.type.startsWith("tele_auto.")) {
+    const data = event.data && typeof event.data === "object" ? event.data as Record<string, unknown> : {};
+    const status = typeof data.status === "string" ? data.status.toLowerCase() : "";
+    const baseTeleAuto = { ...base, lastSeenAt: eventTime, lastOperationalAt: eventTime, lastExecutionAt: eventTime, availability: "ONLINE" as const };
+    if (event.type === "tele_auto.run.failed" || event.type === "tele_auto.run.effect_uncertain" || event.type === "tele_auto.sheets.schema_mismatch") return { ...baseTeleAuto, lastFailureAt: eventTime, lastErrorSignature: failureSignature(event.data), operationalHealth: event.type === "tele_auto.run.effect_uncertain" ? "FAILING" as const : "DEGRADED" as const };
+    if (event.type === "tele_auto.telegram.delivery_failed" || (event.type === "tele_auto.worker.recovery" && ["failed", "failure", "unsuccessful"].includes(status))) return { ...baseTeleAuto, lastFailureAt: eventTime, lastErrorSignature: failureSignature(event.data), operationalHealth: "DEGRADED" as const };
+    if (event.type === "tele_auto.run.completed" || (event.type === "tele_auto.worker.recovery" && ["recovered", "completed", "success", "successful"].includes(status))) return { ...baseTeleAuto, lastSuccessfulExecutionAt: eventTime, operationalHealth: "HEALTHY" as const };
+    return { ...baseTeleAuto, operationalHealth: project.operationalHealth === "UNKNOWN" ? "HEALTHY" as const : project.operationalHealth as "HEALTHY" | "DEGRADED" | "FAILING" | "UNKNOWN" };
+  }
   if (event.type.startsWith("task.") || event.type.startsWith("agent.") || event.type.startsWith("deployment.")) return { ...base, lastExecutionAt: eventTime, lastOperationalAt: eventTime, availability: "ONLINE" };
   return base;
 }

@@ -50,4 +50,14 @@ describe("durable event ingestion contract", () => {
     const db = { transaction: async () => { throw new Error("database unavailable"); } };
     await expect(persistEventBatch(db as never, [validEvent], project.id)).rejects.toThrow("database unavailable");
   });
+
+  it("accepts normalized Tele Auto events and strips unapproved payload fields", () => {
+    const result = validateEventBatch({ events: [{ schemaVersion: 1, eventId: "tele_evt_1", projectId: "keymax", environment: "production", type: "tele_auto.run.completed", occurredAt: "2026-09-06T12:40:00.000+07:00", data: { runId: "run_1", store: "PMS", domain: "DAILY_SO", status: "completed", message: "private text", metadata: { phase: "write", attempt: 2 } } }] }, project);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.events[0].data).toEqual({ runId: "run_1", store: "PMS", domain: "DAILY_SO", status: "completed", metadata: { phase: "write", attempt: 2 } });
+  });
+
+  it("rejects sensitive metadata keys in Tele Auto telemetry", () => {
+    expect(validateEventBatch({ events: [{ ...validEvent, type: "tele_auto.run.failed", data: { runId: "run_1", metadata: { token: "should-not-pass" } } }] }, project)).toMatchObject({ ok: false, kind: "invalid_event_data" });
+  });
 });

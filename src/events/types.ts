@@ -3,6 +3,22 @@ import { z } from "zod";
 const objectData = z.object({}).passthrough();
 const identified = (key: string) => z.object({ [key]: z.string().trim().min(1).max(200) }).passthrough();
 
+const safeMetadataValue = z.union([z.string().max(200), z.number().finite(), z.boolean(), z.null()]);
+const forbiddenTelemetryKey = /telegram|message|text|secret|token|credential|authorization|private.?key|password|sheet|spreadsheet|sku|quantity/i;
+const teleAutoData = z.object({
+  runId: z.string().trim().min(1).max(200).optional(),
+  store: z.enum(["PMS", "TP6"]).optional(),
+  domain: z.enum(["PRODUCTION", "WASTE", "DAILY_SO"]).optional(),
+  status: z.string().trim().min(1).max(80).optional(),
+  severity: z.enum(["INFO", "WARNING", "ERROR", "CRITICAL"]).optional(),
+  executionPhase: z.string().trim().min(1).max(100).optional(),
+  errorCode: z.string().trim().min(1).max(160).optional(),
+  durationMs: z.number().int().nonnegative().max(86_400_000).optional(),
+  metadata: z.record(z.string().max(64), safeMetadataValue).optional(),
+}).strip().superRefine((value, context) => {
+  for (const key of Object.keys(value.metadata ?? {})) if (forbiddenTelemetryKey.test(key)) context.addIssue({ code: "custom", path: ["metadata", key], message: "sensitive telemetry key is not allowed" });
+});
+
 export const eventDataSchemas = {
   "system.heartbeat": objectData,
   "project.started": objectData,
@@ -23,6 +39,16 @@ export const eventDataSchemas = {
   "command.acknowledged": identified("commandId"),
   "command.completed": identified("commandId"),
   "command.failed": identified("commandId"),
+  "tele_auto.run.received": teleAutoData,
+  "tele_auto.run.processing": teleAutoData,
+  "tele_auto.run.needs_clarification": teleAutoData,
+  "tele_auto.run.awaiting_confirmation": teleAutoData,
+  "tele_auto.run.completed": teleAutoData,
+  "tele_auto.run.failed": teleAutoData,
+  "tele_auto.run.effect_uncertain": teleAutoData,
+  "tele_auto.worker.recovery": teleAutoData,
+  "tele_auto.telegram.delivery_failed": teleAutoData,
+  "tele_auto.sheets.schema_mismatch": teleAutoData,
 } as const;
 
 export const eventTypes = Object.keys(eventDataSchemas) as [keyof typeof eventDataSchemas, ...(keyof typeof eventDataSchemas)[]];

@@ -39,4 +39,10 @@ describe("project health derivation", () => {
     expect(deriveHealthFromEvent(failing, { type: "task.completed", occurredAt: new Date("2026-09-06T11:59:30Z"), data: { taskId: "t" } })).toMatchObject({ operationalHealth: "HEALTHY" });
     expect(deriveHealthFromEvent(failing, { type: "task.completed", occurredAt: new Date("2026-09-06T11:58:00Z"), data: { taskId: "t" } })).toEqual({});
   });
+
+  it("keeps Tele Auto activity online while separating operational failure", () => {
+    const project = base({ healthStrategy: "execution_based", runtimeMode: "on_demand" });
+    expect(deriveHealthFromEvent(project, { type: "tele_auto.run.needs_clarification", occurredAt: now, data: { runId: "run-1" } })).toMatchObject({ availability: "ONLINE", operationalHealth: "HEALTHY" });
+    expect(deriveHealthFromEvent(project, { type: "tele_auto.sheets.schema_mismatch", occurredAt: new Date(now.getTime() + 1000), data: { runId: "run-1", errorCode: "HEADER_MISSING" } })).toMatchObject({ availability: "ONLINE", operationalHealth: "DEGRADED" });
+  });
 });

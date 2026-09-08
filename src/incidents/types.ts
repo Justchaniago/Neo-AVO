@@ -37,6 +37,16 @@ export function shouldNotifyImmediately(severity: IncidentSeverity) {
 export function incidentTrigger(project: IncidentProject, event: IncidentEvent, now: Date): IncidentTrigger | null {
   const data = event.data && typeof event.data === "object" ? event.data as Record<string, unknown> : {};
   const projectScope = `${project.id}:${project.environment}`;
+  if (event.type.startsWith("tele_auto.")) {
+    const runId = typeof data.runId === "string" ? data.runId : "unknown-run";
+    const errorCode = typeof data.errorCode === "string" ? data.errorCode : "tele_auto_operational_failure";
+    const severity = data.severity === "CRITICAL" ? "CRITICAL" : data.severity === "WARNING" ? "WARNING" : "HIGH";
+    if (event.type === "tele_auto.run.effect_uncertain") return { type: "TELE_AUTO_EFFECT_UNCERTAIN", dedupKey: `${projectScope}:tele-auto:effect-uncertain:${runId}`, severity: "CRITICAL", reason: `Tele Auto effect is uncertain (${errorCode})`, errorSignature: errorCode };
+    if (event.type === "tele_auto.sheets.schema_mismatch") return { type: "TELE_AUTO_SHEETS_SCHEMA_MISMATCH", dedupKey: `${projectScope}:tele-auto:sheets-schema:${errorCode}`, severity, reason: `Tele Auto Sheets schema mismatch (${errorCode})`, errorSignature: errorCode };
+    if (event.type === "tele_auto.telegram.delivery_failed") return { type: "TELE_AUTO_TELEGRAM_DELIVERY_FAILED", dedupKey: `${projectScope}:tele-auto:telegram:${errorCode}`, severity, reason: `Tele Auto Telegram delivery failed (${errorCode})`, errorSignature: errorCode };
+    if (event.type === "tele_auto.worker.recovery" && ["failed", "failure", "unsuccessful"].includes(typeof data.status === "string" ? data.status.toLowerCase() : "")) return { type: "TELE_AUTO_WORKER_RECOVERY_FAILED", dedupKey: `${projectScope}:tele-auto:worker-recovery:${errorCode}`, severity, reason: `Tele Auto worker recovery failed (${errorCode})`, errorSignature: errorCode };
+    if (event.type === "tele_auto.run.failed") return { type: "TELE_AUTO_RUN_FAILURE", dedupKey: `${projectScope}:tele-auto:run-failed:${errorCode}`, severity, reason: `Tele Auto run failed (${errorCode})`, errorSignature: errorCode };
+  }
   if (event.type === "task.failed") {
     const taskId = typeof data.taskId === "string" ? data.taskId : undefined;
     const message = typeof data.message === "string" ? data.message : typeof data.error === "string" ? data.error : "task failure";
@@ -63,5 +73,6 @@ export function recoveryKey(project: IncidentProject, event: IncidentEvent) {
   }
   if (event.type === "project.started") return `${scope}:project-offline`;
   if (event.type === "task.completed" && project.expectedNextExecutionAt) return `${scope}:expected-run-overdue`;
+  if (event.type === "tele_auto.run.completed" && project.expectedNextExecutionAt) return `${scope}:expected-run-overdue`;
   return null;
 }
