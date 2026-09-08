@@ -1,14 +1,10 @@
-"use client";
+import { ProjectScreen } from "../../ui/screens";
 
-import { useEffect, useState } from "react";
-
-type Detail = { project: { id: string; name: string; slug: string; environment: string; runtimeMode: string; healthStrategy: string; availability: string; operationalHealth: string; capabilities: string[]; lastSeenAt: string | null; lastSuccessfulExecutionAt: string | null }; tasks: { id: string; externalTaskId: string; status: string; currentAttempt: number; lastEventAt: string }[]; recentEvents: { id: string; eventId: string; type: string; occurredAt: string; runId: string | null; store: string | null; domain: string | null; status: string | null; severity: string | null }[]; commands: { id: string; capability: string; status: string; requestedAt: string }[] };
-
-export default function ProjectDetailPage({ params }: { params: Promise<{ projectId: string }> }) {
-  const [detail, setDetail] = useState<Detail | null>(null);
-  useEffect(() => { params.then(({ projectId }) => fetch(`/api/v1/dashboard/projects/${projectId}`).then((response) => response.json()).then(setDetail)); }, [params]);
-  if (!detail) return <main><p className="muted">Loading project…</p></main>;
-  const { project } = detail;
-  async function request(capability: string, args: Record<string, string>) { await fetch("/api/v1/commands", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: project.id, environment: project.environment, capability, arguments: args, validUntil: new Date(Date.now() + 15 * 60_000).toISOString() }) }); window.location.reload(); }
-  return <main><p className="eyebrow"><a href="/">← Overview</a> · <a href="/incidents">Incidents</a></p><h1>{project.name}</h1><p className="muted">{project.slug} · {project.environment}</p><section className="grid"><article className="card"><p className="eyebrow">Availability</p><p className={`state ${project.availability.toLowerCase()}`}>{project.availability}</p><p className="eyebrow">Operational health</p><p className={`state ${project.operationalHealth.toLowerCase()}`}>{project.operationalHealth}</p></article><article className="card"><p>Runtime: {project.runtimeMode}</p><p>Strategy: {project.healthStrategy}</p><p>Last seen: {project.lastSeenAt ? new Date(project.lastSeenAt).toLocaleString() : "No evidence"}</p><p>Last success: {project.lastSuccessfulExecutionAt ? new Date(project.lastSuccessfulExecutionAt).toLocaleString() : "No evidence"}</p><p>Capabilities: {project.capabilities.join(", ") || "None declared"}</p></article></section><h2>Bounded operator actions</h2><p className="muted">Actions are explicit requests; the project remains the execution authority.</p><table><thead><tr><th>Task</th><th>Status</th><th>Action</th></tr></thead><tbody>{detail.tasks.map((task) => <tr key={task.id}><td>{task.externalTaskId}</td><td>{task.status}</td><td>{project.capabilities.includes("task.retry") && <button onClick={() => request("task.retry", { taskId: task.externalTaskId })}>Request retry</button>} {project.capabilities.includes("task.cancel") && <button onClick={() => request("task.cancel", { taskId: task.externalTaskId })}>Request cancel</button>}</td></tr>)}</tbody></table><h2>Recent commands</h2><table><thead><tr><th>Capability</th><th>Status</th><th>Requested</th></tr></thead><tbody>{detail.commands.map((command) => <tr key={command.id}><td>{command.capability}</td><td>{command.status}</td><td>{new Date(command.requestedAt).toLocaleString()}</td></tr>)}</tbody></table><h2>Recent activity</h2><table><thead><tr><th>Event</th><th>Context</th><th>Status</th><th>Occurred</th></tr></thead><tbody>{detail.recentEvents.map((event) => <tr key={event.id}><td>{event.type}<br /><span className="muted">{event.eventId}</span></td><td>{[event.store, event.domain, event.runId ? `run ${event.runId}` : null].filter(Boolean).join(" · ") || "Operational"}</td><td>{[event.status, event.severity].filter(Boolean).join(" · ") || "-"}</td><td>{new Date(event.occurredAt).toLocaleString()}</td></tr>)}</tbody></table></main>;
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
+  const { projectId } = await params;
+  return <ProjectScreen id={projectId} />;
 }
