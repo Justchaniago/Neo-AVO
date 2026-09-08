@@ -19,7 +19,7 @@ For PULL commands, use the M1 credential and environment header:
 ```sh
 curl -H "Authorization: Bearer $PROJECT_TOKEN" \
   -H "X-Neo-Avo-Environment: production" \
-  https://neo-office.chaniago.me/api/v1/commands/pending
+  https://neo-avo.chaniago.me/api/v1/commands/pending
 ```
 
 Execute only the project’s own bounded capability, reject commands past `validUntil`, deduplicate by `commandId`, then call `/api/v1/commands/<commandId>/ack` and `/result` with the same credential. Poll cadence is project-owned; Neo AVO does not require long polling or a universal interval.

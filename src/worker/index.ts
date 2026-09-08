@@ -2,17 +2,20 @@ import { loadEnv } from "../config/env";
 import { createConfiguredDb } from "../db/client";
 import { claimPendingEvent } from "./repository";
 import { processClaimedEvent } from "./processor";
-import { dispatchOneTelegramNotification } from "../notifications/telegram";
+import { dispatchOneTelegramNotification, pollTelegramCommands, type TelegramPollState } from "../notifications/telegram";
 import { runOneOpsAnalysis } from "../ops/analyst";
 import { deliverOnePushCommand } from "../commands/delivery";
 import { expireCommands } from "../commands/repository";
 import { log } from "../observability/logger";
+import { monitorProjectHealth } from "../health/monitor";
 
 export async function startWorker() {
   const env = loadEnv();
   const { db, pool } = createConfiguredDb();
   const workerId = `worker-${process.pid}`;
   let stopping = false;
+  let lastHealthCheckAt = 0;
+  const telegramPollState: TelegramPollState = { offset: 0, lastPollAt: 0 };
   const stop = () => { stopping = true; };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
@@ -22,7 +25,16 @@ export async function startWorker() {
       const event = await claimPendingEvent(db, workerId);
       if (event) await processClaimedEvent(db, event);
       else await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (Date.now() - lastHealthCheckAt >= 5_000) {
+        await monitorProjectHealth(db);
+        lastHealthCheckAt = Date.now();
+      }
       await dispatchOneTelegramNotification(db);
+      try {
+        await pollTelegramCommands(db, telegramPollState);
+      } catch (error) {
+        log("error", "telegram", "command_poll_failed", { errorClass: error instanceof Error ? error.name : "unknown" });
+      }
       await runOneOpsAnalysis(db);
       await expireCommands(db);
       await deliverOnePushCommand(db);

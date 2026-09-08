@@ -26,3 +26,8 @@ export async function markNotificationFailed(db: Db, id: string, claimToken: str
   const message = (error instanceof Error ? error.message : String(error)).slice(0, 1000);
   return db.update(notifications).set({ status: "FAILED", lastError: message, nextAttemptAt: new Date(Date.now() + 60_000), claimToken: null, claimedAt: null }).where(and(eq(notifications.id, id), eq(notifications.claimToken, claimToken))).returning();
 }
+
+export async function createHealthTransitionNotification(db: Db, values: { dedupKey: string; severity: string; message: string }) {
+  const [notification] = await db.insert(notifications).values({ incidentId: null, channel: "telegram", kind: "health_transition", dedupKey: values.dedupKey, severity: values.severity, message: values.message }).onConflictDoNothing().returning();
+  return notification;
+}

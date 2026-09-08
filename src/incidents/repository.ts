@@ -48,7 +48,7 @@ export async function resolveIncident(db: QueryDb, incidentId: string, eventId: 
   const [incident] = await db.update(incidents).set({ state: "RESOLVED", resolvedAt: now, resolutionReason: reason, updatedAt: now }).where(and(eq(incidents.id, incidentId), ne(incidents.state, "RESOLVED"))).returning();
   if (!incident) return null;
   await linkIncidentEvent(db, incident.id, eventId);
-  await createNotification(db, { incidentId: incident.id, kind: "recovery", severity: incident.severity, message: `RESOLVED: ${incident.reason}` });
+  await createNotification(db, { incidentId: incident.id, kind: "recovery", dedupKey: `${incident.id}:recovery`, severity: incident.severity, message: `RESOLVED: ${incident.reason}` });
   return incident;
 }
 

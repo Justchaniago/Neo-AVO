@@ -16,6 +16,6 @@
 - [ ] PULL command smoke test passed or explicitly gated
 - [ ] Staging validation complete
 - [ ] Rollback procedure tested/readied
-- [ ] `neo-office.chaniago.me` validation complete
+- [ ] `neo-avo.chaniago.me` validation complete
 - [ ] Event/incident/command retention policy reviewed
 - [ ] Eventual `office.chaniago.me` cutover approved

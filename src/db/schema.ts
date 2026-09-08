@@ -139,9 +139,10 @@ export const notifications = pgTable(
   "notifications",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    incidentId: uuid("incident_id").notNull().references(() => incidents.id, { onDelete: "cascade" }),
+    incidentId: uuid("incident_id").references(() => incidents.id, { onDelete: "cascade" }),
     channel: text("channel").notNull().default("telegram"),
     kind: text("kind").notNull(),
+    dedupKey: text("dedup_key"),
     severity: text("severity").notNull(),
     status: text("status").notNull().default("PENDING"),
     message: text("message").notNull(),
@@ -153,7 +154,10 @@ export const notifications = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => ({ notificationKindIdx: uniqueIndex("notifications_incident_kind_idx").on(table.incidentId, table.kind) }),
+  (table) => ({
+    notificationKindIdx: uniqueIndex("notifications_incident_kind_idx").on(table.incidentId, table.kind),
+    notificationDedupIdx: uniqueIndex("notifications_dedup_key_idx").on(table.dedupKey).where(sql`${table.dedupKey} is not null`),
+  }),
 );
 
 export const opsAnalyses = pgTable(

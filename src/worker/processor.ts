@@ -7,6 +7,7 @@ import { recordIncidentForEvent, resolveIncidentForEvent } from "../incidents/us
 import { findTask, markEventFailed, markEventProcessed, upsertTask } from "./repository";
 import { projectTaskEvent } from "../tasks/projection";
 import { log } from "../observability/logger";
+import { queueHealthTransitionNotification } from "../health/notifications";
 
 type Db = NodePgDatabase<typeof schema>;
 export const MAX_PROCESSING_ATTEMPTS = 3;
@@ -28,6 +29,8 @@ export async function processClaimedEvent(db: Db, event: typeof schema.events.$i
       if (Object.keys(healthChanges).length > 0) await updateProject(tx, project.id, healthChanges);
       const currentProject = await findProjectById(tx, event.projectId);
       if (!currentProject) throw new Error("event project no longer exists");
+      if (project.availability !== currentProject.availability) await queueHealthTransitionNotification(tx, { projectId: project.id, projectName: project.name, environment: project.environment, sourceKey: event.id, kind: "availability", previous: project.availability, current: currentProject.availability, criticality: project.criticality, occurredAt: event.occurredAt });
+      if (project.operationalHealth !== currentProject.operationalHealth) await queueHealthTransitionNotification(tx, { projectId: project.id, projectName: project.name, environment: project.environment, sourceKey: event.id, kind: "health", previous: project.operationalHealth, current: currentProject.operationalHealth, criticality: project.criticality, occurredAt: event.occurredAt });
       await resolveIncidentForEvent(tx, currentProject, { id: event.id, type: event.type, occurredAt: event.occurredAt, data: event.data }, `Recovered by ${event.type}`);
       await recordIncidentForEvent(tx, currentProject, { id: event.id, type: event.type, occurredAt: event.occurredAt, data: event.data });
       const processed = await markEventProcessed(tx, event.id, event.claimToken!);

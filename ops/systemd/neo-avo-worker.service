@@ -8,6 +8,7 @@ Type=simple
 User=neo-avo
 WorkingDirectory=/opt/neo-avo
 EnvironmentFile=/etc/neo-avo/neo-avo.env
+EnvironmentFile=-/etc/neo-avo/telegram.env
 ExecStart=/usr/bin/npm run worker
 Restart=on-failure
 RestartSec=5

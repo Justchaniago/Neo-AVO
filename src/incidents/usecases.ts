@@ -19,7 +19,7 @@ export async function recordIncidentForEvent(db: Db, project: IncidentProject, e
   if (!trigger) return null;
   const existing = await findDeduplicatedIncident(db, project.id, project.environment, trigger.dedupKey, new Date(now.getTime() - DEDUP_WINDOW_MS));
   const incident = existing ? await updateIncident(db, existing.id, trigger, event.id, now) : await createIncident(db, project.id, project.environment, trigger, event.id, now);
-  if (!existing && shouldNotifyImmediately(trigger.severity)) await createNotification(db, { incidentId: incident.id, kind: "initial", severity: trigger.severity, message: telegramMessage(incident) });
+  if (!existing && shouldNotifyImmediately(trigger.severity)) await createNotification(db, { incidentId: incident.id, kind: "initial", dedupKey: `${incident.id}:initial`, severity: trigger.severity, message: telegramMessage(incident) });
   if (!existing && isAnalysisEligible(incident.severity, incident.type)) await createAnalysisIfAbsent(db, incident.id);
   return incident;
 }

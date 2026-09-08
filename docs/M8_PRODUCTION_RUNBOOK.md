@@ -17,7 +17,7 @@ npm run production:check
 npm run db:migrate
 sudo systemctl restart neo-avo-web
 sudo systemctl restart neo-avo-worker
-curl --fail https://neo-office.chaniago.me/api/health
+curl --fail https://neo-avo.chaniago.me/api/health
 sudo systemctl --no-pager --full status neo-avo-web neo-avo-worker
 ```
 
@@ -29,7 +29,7 @@ Rollback the application by checking out the previous known-good commit, running
 
 ## Environment and secrets
 
-Base runtime requires `DATABASE_URL`. `DATABASE_SSL=require` is the production default. Telegram variables (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) are required when immediate Telegram delivery is part of the deployment; set `REQUIRE_TELEGRAM=1` for the production check. Vertex variables (`GOOGLE_CLOUD_PROJECT`, optional location/model) are required only when enabling Ops Analyst; set `REQUIRE_VERTEX=1` for that check. `COMMAND_ENCRYPTION_KEY` is required before configuring any PUSH project, but is not a global dependency for PULL-only deployments.
+Base runtime requires `DATABASE_URL`. `DATABASE_SSL=require` is the production default. Telegram variables (`TELEGRAM_BOT_TOKEN`, `NEO_AVO_TELEGRAM_ALLOWED_CHAT_ID`) are required when immediate Telegram delivery is part of the deployment; set `REQUIRE_TELEGRAM=1` for the production check. Vertex variables (`GOOGLE_CLOUD_PROJECT`, optional location/model) are required only when enabling Ops Analyst; set `REQUIRE_VERTEX=1` for that check. `COMMAND_ENCRYPTION_KEY` is required before configuring any PUSH project, but is not a global dependency for PULL-only deployments.
 
 Generate the command key with cryptographically secure randomness, for example `openssl rand -hex 32`. Never commit it, print it, or include it in events, logs, prompts, or backups as a separate artifact. The encrypted PUSH secrets in PostgreSQL cannot be decrypted after restore without the exact corresponding key; preserve the key in the operator’s restricted secret backup alongside the database backup.
 
@@ -66,4 +66,4 @@ Retention remains manual in V1. Do not delete events or incident evidence until 
 
 The current dependency audit reports advisories in `drizzle-orm` and transitive `postcss`/Next.js versions. Automatic force-upgrade was deliberately not applied because the available fixes include breaking upgrades; review and schedule those upgrades before public production exposure.
 
-Do not cut over `office.chaniago.me` yet. Validate first on `neo-office.chaniago.me`; keep the old AVO available until staging and first integration acceptance are complete.
+Do not cut over `office.chaniago.me` yet. Validate first on `neo-avo.chaniago.me`; keep the old AVO available until staging and first integration acceptance are complete.
