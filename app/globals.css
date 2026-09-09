@@ -1764,3 +1764,46 @@ dialog::backdrop {
 .bounded-controls h3 {
   margin-top: 25px;
 }
+.ui-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+  vertical-align: -0.12em;
+}
+.mobile-nav-close { display: none; }
+.refresh-mode { display: block; margin-top: 5px; }
+.freshness-notice, .activity-update {
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  border: 2px solid var(--ink);
+  background: var(--orange);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.freshness-notice button { margin-left: 10px; }
+.activity-update { background: var(--cyan); }
+.activity-update span { display: block; margin-top: 8px; }
+.clear-filters { margin-bottom: 12px; }
+.evidence-details { margin: 16px 0; border-block: 2px solid var(--ink); padding: 12px 0; }
+.evidence-details summary { cursor: pointer; font-weight: 700; }
+.inspector .dialog-heading {
+  position: sticky;
+  top: -25px;
+  padding-top: 20px;
+  z-index: 2;
+  background: var(--canvas, #f6f1e7);
+}
+.inspector.is-closing { animation: inspector-out 160ms ease-in forwards; }
+.palette.is-closing { animation: palette-out 160ms ease-in forwards; }
+.just-updated { animation: received-update 600ms ease-out; }
+@keyframes inspector-out { to { transform: translateX(100%); opacity: 0; } }
+@keyframes palette-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes received-update { from { background: var(--cyan); } to { background: transparent; } }
+@media (max-width: 1000px) {
+  .mobile-nav-close { display: flex; align-items: center; justify-content: center; position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; padding: 10px; background: var(--ink); color: var(--lime); border: 0; box-shadow: none; z-index: 2; }
+  .menu-open .sidebar { padding-top: 42px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inspector.is-closing, .palette.is-closing, .just-updated { animation: none; }
+}

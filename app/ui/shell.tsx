@@ -1,25 +1,46 @@
 "use client";
 
+import { Icon, type IconName } from "./icons";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DashboardProvider, useDashboard } from "./data";
 import { globalSignal } from "./model";
 import { Overlay } from "./primitives";
 
-const navigation = [
-  ["/", "Overview", "▦"],
-  ["/projects", "Projects", "▣"],
-  ["/activity", "Activity", "↗"],
-  ["/incidents", "Incidents", "!"],
-  ["/agents", "Agents", "⌘"],
-  ["/intelligence", "Intelligence", "✳"],
-  ["/settings", "Settings", "⚙"],
+const navigation: [string, string, IconName][] = [
+  ["/", "Overview", "grid"],
+  ["/projects", "Projects", "project"],
+  ["/activity", "Activity", "arrow"],
+  ["/incidents", "Incidents", "attention"],
+  ["/agents", "Agents", "agents"],
+  ["/intelligence", "Intelligence", "intelligence"],
+  ["/settings", "Settings", "settings"],
 ];
 function ConsoleShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [menu, setMenu] = useState(false);
   const [desktop, setDesktop] = useState(false);
+  const sidebar = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!menu || desktop) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const items = () => Array.from(sidebar.current?.querySelectorAll<HTMLElement>('a[href], button') || []);
+    items()[0]?.focus();
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const controls = items();
+      const target = event.shiftKey ? controls.at(-1) : controls[0];
+      if ((event.shiftKey && document.activeElement === controls[0]) || (!event.shiftKey && document.activeElement === controls.at(-1))) {
+        event.preventDefault(); target?.focus();
+      }
+    };
+    window.addEventListener("keydown", trap);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", trap); menuButton.current?.focus(); };
+  }, [menu, desktop]);
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1001px)");
     const update = () => {
@@ -32,11 +53,11 @@ function ConsoleShell({ children }: { children: ReactNode }) {
   }, []);
   const [search, setSearch] = useState(false);
   const [query, setQuery] = useState("");
-  const { projects, incidents, health } = useDashboard();
+  const { projects, incidents, health, online, stale, refresh } = useDashboard();
   const signal = globalSignal(
     projects.data?.projects,
     incidents.data?.incidents,
-    !!projects.error || !!incidents.error,
+    stale,
   );
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -60,7 +81,8 @@ function ConsoleShell({ children }: { children: ReactNode }) {
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <aside className="sidebar" id="navigation" inert={desktop ? menu : !menu}>
+      <aside ref={sidebar} className="sidebar" id="navigation" inert={desktop ? menu : !menu} aria-label="Navigation">
+        <button className="mobile-nav-close" aria-label="Close navigation" onClick={() => setMenu(false)}><Icon name="close" /></button>
         <Link className="brand" href="/" aria-label="Neo AVO overview">
           <strong>AVO.</strong>
           <span>
@@ -68,7 +90,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
             <br />
             VIRTUAL OFFICE
           </span>
-          <i aria-hidden="true">↗</i>
+          <i aria-hidden="true"><Icon name="arrow" /></i>
         </Link>
         <nav aria-label="Main navigation">
           {navigation.map(([href, label, icon]) => (
@@ -83,11 +105,11 @@ function ConsoleShell({ children }: { children: ReactNode }) {
               }
             >
               <span className="nav-icon" aria-hidden="true">
-                {icon}
+                <Icon name={icon} />
               </span>
               {label}
               <span className="nav-arrow" aria-hidden="true">
-                ↗
+                <Icon name="arrow" />
               </span>
             </Link>
           ))}
@@ -96,9 +118,9 @@ function ConsoleShell({ children }: { children: ReactNode }) {
           <p className="eyebrow">System pulse / Neo AVO</p>
           <strong>
             <i
-              className={`pulse-dot ${health.data?.status === "ok" ? "ok" : ""}`}
+              className={`pulse-dot ${!stale && health.data?.status === "ok" ? "ok" : ""}`}
             />
-            {health.error
+            {stale
               ? "STATUS UNAVAILABLE"
               : health.data?.status === "ok"
                 ? "WEB / DB AVAILABLE"
@@ -118,34 +140,36 @@ function ConsoleShell({ children }: { children: ReactNode }) {
           onClick={() => setMenu(false)}
         />
       )}
-      <div className="console-body">
+      <div className="console-body" inert={menu && !desktop}>
         <header className="topbar">
           <button
+            ref={menuButton}
             className="menu-control"
             aria-label="Toggle navigation"
             aria-expanded={desktop ? !menu : menu}
             aria-controls="navigation"
             onClick={() => setMenu(!menu)}
           >
-            ☰
+            <Icon name="menu" />
           </button>
           <button className="search-control" onClick={() => setSearch(true)}>
             <span>SEARCH ANYTHING_</span>
-            <kbd>⌘ K</kbd>
+            <kbd><Icon name="agents" /> K</kbd>
           </button>
           <div className={`global-status tone-${signal.tone}`}>
-            <span className="eyebrow">■ Project system status</span>
+            <span className="eyebrow">Project system status</span>
             <strong>{signal.label}</strong>
           </div>
           <div className="owner-block">
-            <span className="owner-avatar">O</span>
+            <span className="owner-avatar">A</span>
             <span>
-              <strong>OWNER</strong>
+              <strong>NEO AVO</strong>
               <small>Operations console</small>
             </span>
           </div>
         </header>
         <main id="main-content" tabIndex={-1}>
+          {stale && <div className="freshness-notice" role="status"><strong>{online ? "Updates delayed." : "You’re offline."}</strong> Last received data may be out of date. System health is not reassessed while disconnected. {online && <button onClick={refresh}>Retry update</button>}</div>}
           {children}
           <footer className="page-footer">
             <span>NEO AVO / AUTONOMOUS VIRTUAL OFFICE</span>
@@ -179,7 +203,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
               .map(([href, label]) => (
                 <Link onClick={() => setSearch(false)} key={href} href={href}>
                   <span>PAGE</span>
-                  {label} ↗
+                  {label} <Icon name="arrow" />
                 </Link>
               ))}
             {projects.data?.projects
@@ -191,7 +215,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
                   href={`/projects/${p.id}`}
                 >
                   <span>PROJECT</span>
-                  {p.name} ↗
+                  {p.name} <Icon name="arrow" />
                 </Link>
               ))}
             {incidents.data?.incidents
@@ -204,7 +228,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
                   href={`/incidents/${i.id}`}
                 >
                   <span>INCIDENT</span>
-                  {i.type.replaceAll("_", " ")} ↗
+                  {i.type.replaceAll("_", " ")} <Icon name="arrow" />
                 </Link>
               ))}
           </div>
@@ -213,7 +237,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
             onClick={() => setSearch(false)}
             href={`/activity?q=${encodeURIComponent(query)}`}
           >
-            Search recent activity ↗
+            Search recent activity <Icon name="arrow" />
           </Link>
         </Overlay>
       )}

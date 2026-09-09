@@ -1,7 +1,10 @@
 "use client";
 
+import { Icon } from "./icons";
+
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { tone, timestamp } from "./model";
+import { useDashboard } from "./data";
 
 export function Badge({ value }: { value: string }) {
   return (
@@ -102,7 +105,7 @@ export function ErrorState({
         {children ||
           "This data source is unavailable. Other systems may still be operating normally."}
       </p>
-      <button onClick={retry}>Retry connection ↗</button>
+      <button onClick={retry}>Retry connection <Icon name="arrow" /></button>
     </div>
   );
 }
@@ -121,9 +124,12 @@ export function Loading() {
   );
 }
 export function Time({ value }: { value?: string | null }) {
+  const { now } = useDashboard();
+  const seconds = value && now ? Math.floor((now - Date.parse(value)) / 1000) : -1;
+  const relative = seconds >= 0 && seconds < 86400 ? (seconds < 60 ? "Just now" : seconds < 3600 ? `${Math.floor(seconds / 60)}m ago` : `${Math.floor(seconds / 3600)}h ago`) : null;
   return value ? (
-    <time dateTime={value} title={value}>
-      {timestamp(value)}
+    <time dateTime={value} title={timestamp(value)} aria-label={timestamp(value)}>
+      {relative || timestamp(value)}
     </time>
   ) : (
     <span>No evidence</span>
@@ -177,6 +183,14 @@ export function Overlay({
   palette?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const [closing, setClosing] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const close = () => {
+    if (closing) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { onClose(); return; }
+    setClosing(true);
+    closeTimer.current = setTimeout(onClose, 160);
+  };
   const id = useId();
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -184,6 +198,7 @@ export function Overlay({
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
       document.body.style.overflow = overflow;
       previous?.focus();
     };
@@ -191,18 +206,18 @@ export function Overlay({
   return (
     <dialog
       ref={ref}
-      className={palette ? "palette" : "inspector"}
+      className={`${palette ? "palette" : "inspector"} ${closing ? "is-closing" : ""}`}
       aria-labelledby={id}
-      onCancel={onClose}
+      onCancel={event => { event.preventDefault(); close(); }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget) close();
       }}
     >
       <div className="dialog-content">
         <header className="dialog-heading">
           <h2 id={id}>{title}</h2>
-          <button onClick={onClose} aria-label="Close dialog">
-            ✕
+          <button onClick={close} aria-label="Close dialog">
+            <Icon name="close" />
           </button>
         </header>
         {children}

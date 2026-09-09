@@ -1,8 +1,11 @@
 "use client";
 
+import { Icon } from "./icons";
+
 import Link from "next/link";
 import { AcknowledgeIncident } from "./existing-controls";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useDashboard, useRead } from "./data";
 import {
   type Project,
@@ -41,7 +44,7 @@ export function ProjectCard({ project: p }: { project: Project }) {
           href={`/projects/${p.id}`}
           aria-label={`Open ${p.name}`}
         >
-          ↗
+          <Icon name="arrow" />
         </Link>
       </div>
       <h3>
@@ -96,7 +99,7 @@ export function IncidentRows({
             <div className="row-state">
               <Badge value={i.severity} />
               <span className="eyebrow">{i.state}</span>
-              <span>Inspect ↗</span>
+              <span>Inspect <Icon name="arrow" /></span>
             </div>
           </button>
         ))}
@@ -105,7 +108,7 @@ export function IncidentRows({
         <Overlay title="Incident inspector" onClose={() => setSelected(null)}>
           <IncidentContent id={selected} />
           <Link className="button" href={`/incidents/${selected}`}>
-            Open incident page ↗
+            Open incident page <Icon name="arrow" />
           </Link>
         </Overlay>
       )}
@@ -164,7 +167,7 @@ export function AnalysisContent({ detail }: { detail: IncidentDetail }) {
   );
 }
 export function IncidentContent({ id }: { id: string }) {
-  const { revision, refresh } = useDashboard();
+  const { revision, refresh, projects } = useDashboard();
   const result = useRead<IncidentDetail>(
     `/api/v1/dashboard/incidents/${encodeURIComponent(id)}`,
     revision,
@@ -185,13 +188,13 @@ export function IncidentContent({ id }: { id: string }) {
           <Badge value={i.state} />
         </div>
         <p>{i.reason}</p>
-        <Copy value={i.id} label="incident ID" />
+        <details className="evidence-details"><summary>Incident identifier</summary><Copy value={i.id} label="incident ID" /></details>
         <Facts
           rows={[
             [
               "Project",
               <Link key="project" href={`/projects/${i.projectId}`}>
-                {i.projectId} ↗
+                {projects.data?.projects.find(project => project.id === i.projectId)?.name || "View project"} <Icon name="arrow" />
               </Link>,
             ],
             ["Environment", i.environment],
@@ -236,8 +239,33 @@ export function ActivityFeed({
   const [project, setProject] = useState("");
   const [status, setStatus] = useState("");
   const [context, setContext] = useState("");
-  const [selected, setSelected] = useState<ScopedActivity | null>(null);
-  const visible = events.filter(meaningful);
+  const pathname = usePathname();
+  const storageKey = `avo:activity-filters:${pathname}`;
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    if (compact) return;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+      if (saved && typeof saved.project === "string" && typeof saved.status === "string") {
+        setProject(saved.project); setStatus(saved.status);
+      }
+    } catch { /* Storage is optional, including in private browsing. */ }
+    setRestored(true);
+  }, [compact, storageKey]);
+  useEffect(() => {
+    if (!compact && restored) {
+      try { sessionStorage.setItem(storageKey, JSON.stringify({ project, status })); } catch { /* Optional preference storage. */ }
+    }
+  }, [compact, restored, storageKey, project, status]);
+  const [displayed, setDisplayed] = useState(events);
+  const [updated, setUpdated] = useState(false);
+  const displayedIds = new Set(displayed.map(e => `${e.project.id}:${e.id}`));
+  const incoming = events.filter(e => meaningful(e) && !displayedIds.has(`${e.project.id}:${e.id}`)).length;
+  const latest = new Map(events.map(event => [`${event.project.id}:${event.id}`, event]));
+  const currentEvents = compact ? events : displayed.map(event => latest.get(`${event.project.id}:${event.id}`) || event);
+  const [selection, setSelected] = useState<ScopedActivity | null>(null);
+  const selected = selection ? latest.get(`${selection.project.id}:${selection.id}`) || selection : null;
+  const visible = currentEvents.filter(meaningful);
   const filtered = visible.filter(
     (e) =>
       activityMatches(e, query) &&
@@ -247,6 +275,8 @@ export function ActivityFeed({
   );
   return (
     <>
+      {!compact && incoming > 0 && <div className="activity-update" role="status"><button onClick={() => { setDisplayed(events); setUpdated(true); }}>{incoming} new {incoming === 1 ? "event" : "events"} — show updates <Icon name="refresh" /></button><span>Your current view is preserved.</span></div>}
+      {!compact && (query || project || status || context) && <button className="button-small clear-filters" onClick={() => { setQuery(""); setProject(""); setStatus(""); setContext(""); }}>Clear filters</button>}
       {!compact && (
         <div className="filters">
           <label>
@@ -317,7 +347,7 @@ export function ActivityFeed({
             : "Normalized operational events will appear when reported. Heartbeats are reflected in availability."}
         </Empty>
       ) : (
-        <div className="activity-list">
+        <div className={`activity-list ${updated ? "just-updated" : ""}`} onAnimationEnd={() => setUpdated(false)}>
           {filtered.slice(0, compact ? 6 : undefined).map((e) => (
             <button
               className="activity-row"
@@ -328,7 +358,7 @@ export function ActivityFeed({
                 className={`event-symbol tone-${tone(e.severity || e.status || "INFO")}`}
                 aria-hidden="true"
               >
-                ↗
+                <Icon name="arrow" />
               </span>
               <div>
                 <strong>{eventLabel(e.type)}</strong>
@@ -345,7 +375,7 @@ export function ActivityFeed({
                 )}
                 <Time value={e.occurredAt} />
               </div>
-              <span aria-hidden="true">↗</span>
+              <span aria-hidden="true"><Icon name="arrow" /></span>
             </button>
           ))}
         </div>
@@ -361,14 +391,14 @@ export function ActivityFeed({
             {selected.status && <Badge value={selected.status} />}
             {selected.severity && <Badge value={selected.severity} />}
           </div>
-          <Copy value={selected.eventId} label="event ID" />
-          {selected.runId && <Copy value={selected.runId} label="run ID" />}
+          <details className="evidence-details"><summary>Evidence identifiers</summary><Copy value={selected.eventId} label="event ID" />
+          {selected.runId && <Copy value={selected.runId} label="run ID" />}</details>
           <Facts
             rows={[
               [
                 "Project",
                 <Link key="p" href={`/projects/${selected.project.id}`}>
-                  {selected.project.name} ↗
+                  {selected.project.name} <Icon name="arrow" />
                 </Link>,
               ],
               [
@@ -396,7 +426,7 @@ export function ActivityFeed({
             className="button"
             href={`/incidents?project=${encodeURIComponent(selected.project.id)}`}
           >
-            Investigate project incidents ↗
+            Investigate project incidents <Icon name="arrow" />
           </Link>
         </Overlay>
       )}

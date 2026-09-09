@@ -1,5 +1,7 @@
 "use client";
 
+import { Icon } from "./icons";
+
 import Link from "next/link";
 import { ProjectControls } from "./existing-controls";
 import { useEffect, useState } from "react";
@@ -31,12 +33,13 @@ import {
 } from "./operational";
 
 function Refresh() {
-  const { refresh, checkedAt } = useDashboard();
+  const { refresh, checkedAt, refreshing, online, stale } = useDashboard();
   return (
     <div className="refresh-block">
-      <button onClick={refresh}>↻ Refresh signals</button>
+      <button onClick={refresh} disabled={refreshing || !online}><Icon name="refresh" /> {refreshing ? "Checking signals…" : "Refresh signals"}</button>
       <small>
-        Requested <Time value={checkedAt} />
+        {checkedAt ? <>Last received <Time value={checkedAt} /></> : "Awaiting first successful update"}
+        <span className="refresh-mode">{!online ? "Offline" : stale ? "Updates delayed" : "Auto-refresh / 60s while visible"}</span>
       </small>
     </div>
   );
@@ -48,19 +51,19 @@ function ActivitySurface({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     setQuery(new URLSearchParams(window.location.search).get("q") || "");
   }, []);
-  if (activity.error)
+  if (activity.error && !activity.loaded)
     return (
       <ErrorState retry={refresh}>
         Recent activity unavailable. Project telemetry could not be loaded.
       </ErrorState>
     );
-  if (activity.loading || query === null) return <Loading />;
+  if (!activity.loaded || query === null) return <Loading />;
   return (
     <>
+      {activity.error && <ErrorState retry={refresh}>Showing previously received activity. Updates are unavailable.</ErrorState>}
       {activity.failed.length > 0 && (
         <ErrorState retry={refresh}>
-          Activity unavailable for {activity.failed.join(", ")}. Available
-          results are partial.
+          Updates unavailable for {activity.failed.join(", ")}. Results may be partial or out of date.
         </ErrorState>
       )}
       <ActivityFeed
@@ -70,20 +73,18 @@ function ActivitySurface({ compact = false }: { compact?: boolean }) {
       />
       {!compact && (
         <p className="muted data-note">
-          Recent API window: up to 50 events per project, ordered here by
-          occurrence time. Heartbeats hidden. Search and filters apply to this
-          window.
+          Recent reported activity, newest first. Search covers the available history. Heartbeats update availability instead of appearing here.
         </p>
       )}
     </>
   );
 }
 export function OverviewScreen() {
-  const { projects, incidents } = useDashboard();
+  const { projects, incidents, stale } = useDashboard();
   const signal = globalSignal(
     projects.data?.projects,
     incidents.data?.incidents,
-    !!projects.error || !!incidents.error,
+    stale,
   );
   const active = incidents.data?.incidents.filter(
     (i) => i.state !== "RESOLVED",
@@ -100,7 +101,7 @@ export function OverviewScreen() {
       <PageTitle
         eyebrow="Mission control / 01"
         title="Overview"
-        description="Real-time state of your autonomous office"
+        description="Latest reported state of your autonomous office"
         action={<Refresh />}
       />
       <div className="overview-bento">
@@ -110,7 +111,7 @@ export function OverviewScreen() {
           label="01 / Global operational state"
         >
           <div className="hero-symbol" aria-hidden="true">
-            {signal.tone === "lime" ? "↗" : signal.tone === "coral" ? "!" : "◎"}
+            <Icon name={signal.tone === "lime" ? "arrow" : signal.tone === "coral" ? "attention" : "state"} />
           </div>
           <h2>{signal.label}</h2>
           <p>
@@ -124,7 +125,7 @@ export function OverviewScreen() {
           </p>
           <div className="hero-bottom">
             <span>MACHINE-REPORTED STATE</span>
-            <Link href="/projects">Inspect systems ↗</Link>
+            <Link href="/projects">Inspect systems <Icon name="arrow" /></Link>
           </div>
         </Panel>
         <Panel
@@ -146,7 +147,7 @@ export function OverviewScreen() {
               href="/incidents"
               aria-label="Open attention"
             >
-              ↗
+              <Icon name="arrow" />
             </Link>
           }
         >
@@ -164,14 +165,14 @@ export function OverviewScreen() {
               : "No active incidents is not proof of health. Check project signals alongside this view."}
           </p>
           <Link className="text-link" href="/incidents">
-            Review attention ↗
+            Review attention <Icon name="arrow" />
           </Link>
         </Panel>
         <Panel
           className="overview-projects"
           label="03 / Connected systems"
           title="Project health"
-          action={<Link href="/projects">All projects ↗</Link>}
+          action={<Link href="/projects">All projects <Icon name="arrow" /></Link>}
         >
           <ProjectCollection compact />
         </Panel>
@@ -179,7 +180,7 @@ export function OverviewScreen() {
           className="overview-activity"
           label="04 / Operational history"
           title="Just happened"
-          action={<Link href="/activity">Activity ↗</Link>}
+          action={<Link href="/activity">Activity <Icon name="arrow" /></Link>}
         >
           <ActivitySurface compact />
         </Panel>
@@ -194,10 +195,10 @@ export function OverviewScreen() {
             assessments. Analysis stays advisory.
           </p>
           <Link className="button" href="/intelligence">
-            Open intelligence ↗
+            Open intelligence <Icon name="arrow" />
           </Link>
           <span className="ai-mark" aria-hidden="true">
-            ✳
+            <Icon name="intelligence" />
           </span>
         </Panel>
         <Panel
@@ -210,7 +211,7 @@ export function OverviewScreen() {
             events remain visible in Activity.
           </p>
           <Link className="text-link" href="/agents">
-            Agent observability ↗
+            Agent observability <Icon name="arrow" />
           </Link>
         </Panel>
       </div>
@@ -299,7 +300,7 @@ export function ProjectScreen({ id }: { id: string }) {
   return (
     <>
       <Link className="breadcrumb" href="/projects">
-        ← All projects
+        <Icon name="back" /> All projects
       </Link>
       <PageTitle
         eyebrow={`Project workspace / ${p.environment}`}
@@ -537,7 +538,7 @@ export function IncidentScreen({ id }: { id: string }) {
   return (
     <>
       <Link className="breadcrumb" href="/incidents">
-        ← All incidents
+        <Icon name="back" /> All incidents
       </Link>
       <PageTitle
         eyebrow="Incident investigation"
@@ -567,7 +568,7 @@ export function AgentsScreen() {
         label="Agent / worker visibility"
       >
         <span className="agent-glyph" aria-hidden="true">
-          ⌘
+          <Icon name="agents" />
         </span>
         <Empty title="No agents reporting">
           Registered agents and workers will appear here when identity and state
@@ -613,7 +614,7 @@ function SelectedAnalysis({ id }: { id: string }) {
         <h3>{detail.data.incident.type.replaceAll("_", " ")}</h3>
         <Badge value={detail.data.incident.severity} />
         <p>{detail.data.incident.reason}</p>
-        <Link href={`/incidents/${id}`}>Open source incident ↗</Link>
+        <Link href={`/incidents/${id}`}>Open source incident <Icon name="arrow" /></Link>
       </div>
       <AnalysisContent detail={detail.data} />
     </>
@@ -636,7 +637,7 @@ export function IntelligenceScreen() {
           label="Interpretation / not system state"
         >
           <span className="analyst-symbol" aria-hidden="true">
-            ✳
+            <Icon name="intelligence" />
           </span>
           <h2>
             Facts first.
@@ -712,7 +713,7 @@ export function SettingsScreen() {
           {["Projects", "Notifications", "Integrations", "System"].map((t) => (
             <button aria-pressed={tab === t} key={t} onClick={() => setTab(t)}>
               {t}
-              <span>↗</span>
+              <span><Icon name="arrow" /></span>
             </button>
           ))}
         </div>
@@ -732,7 +733,7 @@ export function SettingsScreen() {
                     </p>
                   </div>
                   <Link className="button" href={`/projects/${p.id}`}>
-                    Inspect ↗
+                    Inspect <Icon name="arrow" />
                   </Link>
                 </div>
               ))
@@ -767,14 +768,14 @@ export function SettingsScreen() {
                   <h3>Project telemetry</h3>
                   <p>Registered systems use the existing event integration.</p>
                 </div>
-                <Link href="/projects">Inspect projects ↗</Link>
+                <Link href="/projects">Inspect projects <Icon name="arrow" /></Link>
               </div>
               <div className="setting-row">
                 <div>
                   <h3>Ops Analyst</h3>
                   <p>Incident-linked advisory analysis.</p>
                 </div>
-                <Link href="/intelligence">View assessments ↗</Link>
+                <Link href="/intelligence">View assessments <Icon name="arrow" /></Link>
               </div>
               <p className="muted">
                 Credential values and connection configuration are not
