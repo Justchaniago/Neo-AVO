@@ -9,7 +9,7 @@ const envSchema = z.object({
   NEO_AVO_TELEGRAM_ALLOWED_CHAT_ID: z.string().min(1).optional(),
   GOOGLE_CLOUD_PROJECT: z.string().min(1).optional(),
   VERTEX_LOCATION: z.string().min(1).default("us-central1"),
-  VERTEX_MODEL: z.string().min(1).default("gemini-2.0-flash-001"),
+  VERTEX_MODEL: z.string().min(1).default("gemini-3.1-flash-lite"),
   COMMAND_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/).optional(),
 });
 

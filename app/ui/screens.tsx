@@ -320,6 +320,7 @@ export function ProjectScreen({ id }: { id: string }) {
       <div className="workspace-state">
         <Availability value={p.availability} />
         <Badge value={p.operationalHealth} />
+        <Badge value={p.businessHealth} />
         <span className="muted">
           Last seen <Time value={p.lastSeenAt} />
         </span>
@@ -361,6 +362,10 @@ export function ProjectScreen({ id }: { id: string }) {
                     <Badge key="h" value={p.operationalHealth} />,
                   ],
                   [
+                    "Business health",
+                    <Badge key="b" value={p.businessHealth} />,
+                  ],
+                  [
                     "Last operational event",
                     <Time key="o" value={p.lastOperationalAt} />,
                   ],
@@ -390,6 +395,15 @@ export function ProjectScreen({ id }: { id: string }) {
                   No active incidents in available project records.
                 </Empty>
               )}
+            </Panel>
+            <Panel title="Operations intelligence" label="Expected work and context">
+              <Facts rows={[
+                ["Expected executions", result.data.expectedExecutions?.length ?? 0],
+                ["Dependencies", result.data.dependencies?.length ?? 0],
+                ["Recent changes", result.data.changes?.length ?? 0],
+                ["Active incident records", result.data.incidents?.filter((incident) => incident.state !== "RESOLVED").length ?? 0],
+              ]} />
+              <p className="muted">Expected execution, dependency, change, recovery, and timeline evidence remain machine-derived. Repository and AI context are advisory.</p>
             </Panel>
             <Panel
               className="span-full"

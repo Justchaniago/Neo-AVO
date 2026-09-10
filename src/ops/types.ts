@@ -11,6 +11,12 @@ export const opsAnalysisSchema = z.object({
   confidence: z.number().min(0).max(1),
   impact: z.string().trim().min(1).max(4000),
   recommendedActions: z.array(recommendedActionSchema).max(10),
+  facts: z.array(z.string().trim().min(1).max(1000)).max(20).default([]),
+  hypotheses: z.array(z.object({ statement: z.string().trim().min(1).max(2000), confidence: z.enum(["LOW", "MEDIUM", "HIGH"]) }).strict()).max(10).default([]),
+  correlations: z.array(z.string().trim().min(1).max(1000)).max(20).default([]),
+  relevantRepositoryFiles: z.array(z.string().trim().min(1).max(500)).max(20).default([]),
+  recommendedChecks: z.array(z.string().trim().min(1).max(1000)).max(20).default([]),
+  safetyConstraints: z.array(z.string().trim().min(1).max(1000)).max(20).default([]),
 }).strict();
 
 export type OpsAnalysis = z.infer<typeof opsAnalysisSchema>;

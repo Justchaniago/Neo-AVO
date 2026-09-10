@@ -6,6 +6,7 @@ export type Project = {
   environment: string;
   availability: string;
   operationalHealth: string;
+  businessHealth: string;
   runtimeMode: string;
   healthStrategy: string;
   capabilities: string[];
@@ -57,6 +58,10 @@ export type ProjectDetail = {
     failureReason?: string | null;
     rejectionReason?: string | null;
   }[];
+  incidents?: Incident[];
+  expectedExecutions?: Record<string, unknown>[];
+  dependencies?: Record<string, unknown>[];
+  changes?: Record<string, unknown>[];
 };
 export type Incident = {
   id: string;
@@ -81,6 +86,12 @@ export type Analysis = {
   confidence: number | null;
   impact: string | null;
   recommendedActions: { capability: string; reason: string }[];
+  facts?: string[];
+  hypotheses?: { statement: string; confidence: "LOW" | "MEDIUM" | "HIGH" }[];
+  correlations?: string[];
+  relevantRepositoryFiles?: string[];
+  recommendedChecks?: string[];
+  safetyConstraints?: string[];
   completedAt: string | null;
   provider: string;
   model: string;

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ claimPendingAnalysis: vi.fn(), markAnalysisFailed: vi.fn(), markAnalysisSucceeded: vi.fn(), buildAnalysisContext: vi.fn(), analyzeWithVertex: vi.fn() }));
-vi.mock("../src/ops/repository", () => ({ claimPendingAnalysis: mocks.claimPendingAnalysis, markAnalysisFailed: mocks.markAnalysisFailed, markAnalysisSucceeded: mocks.markAnalysisSucceeded }));
+const mocks = vi.hoisted(() => ({ claimPendingAnalysis: vi.fn(), markAnalysisFailed: vi.fn(), markAnalysisSucceeded: vi.fn(), recordAnalysisInvocation: vi.fn(), buildAnalysisContext: vi.fn(), analyzeWithVertex: vi.fn() }));
+vi.mock("../src/ops/repository", () => ({ claimPendingAnalysis: mocks.claimPendingAnalysis, markAnalysisFailed: mocks.markAnalysisFailed, markAnalysisSucceeded: mocks.markAnalysisSucceeded, recordAnalysisInvocation: mocks.recordAnalysisInvocation }));
 vi.mock("../src/ops/context", async (importOriginal) => ({ ...(await importOriginal<typeof import("../src/ops/context")>()), buildAnalysisContext: mocks.buildAnalysisContext }));
 vi.mock("../src/ops/vertex", () => ({ analyzeWithVertex: mocks.analyzeWithVertex }));
 

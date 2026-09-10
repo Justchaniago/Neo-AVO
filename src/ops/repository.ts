@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import * as schema from "../db/schema";
 import { opsAnalyses } from "../db/schema";
+import type { OpsAnalysis } from "./types";
 
 type Db = NodePgDatabase<typeof schema>;
 
@@ -27,8 +28,8 @@ export async function claimPendingAnalysis(db: Db, now = new Date()) {
   });
 }
 
-export async function markAnalysisSucceeded(db: Db, id: string, claimToken: string, result: { summary: string; likelyCause: string; confidence: number; impact: string; recommendedActions: { capability: string; reason: string }[]; model: string }) {
-  const [analysis] = await db.update(opsAnalyses).set({ status: "SUCCEEDED", summary: result.summary, likelyCause: result.likelyCause, confidence: Math.round(result.confidence * 10000), impact: result.impact, recommendedActions: result.recommendedActions, model: result.model, error: null, completedAt: new Date(), claimToken: null, claimedAt: null, claimExpiresAt: null }).where(and(eq(opsAnalyses.id, id), eq(opsAnalyses.claimToken, claimToken))).returning();
+export async function markAnalysisSucceeded(db: Db, id: string, claimToken: string, result: OpsAnalysis & { model: string }) {
+  const [analysis] = await db.update(opsAnalyses).set({ status: "SUCCEEDED", summary: result.summary, likelyCause: result.likelyCause, confidence: Math.round(result.confidence * 10000), impact: result.impact, recommendedActions: result.recommendedActions, facts: result.facts, hypotheses: result.hypotheses, correlations: result.correlations, relevantRepositoryFiles: result.relevantRepositoryFiles, recommendedChecks: result.recommendedChecks, safetyConstraints: result.safetyConstraints, model: result.model, error: null, completedAt: new Date(), claimToken: null, claimedAt: null, claimExpiresAt: null }).where(and(eq(opsAnalyses.id, id), eq(opsAnalyses.claimToken, claimToken))).returning();
   return analysis;
 }
 
@@ -36,4 +37,17 @@ export async function markAnalysisFailed(db: Db, id: string, claimToken: string,
   const message = (error instanceof Error ? error.message : String(error)).slice(0, 1000);
   const [analysis] = await db.update(opsAnalyses).set({ status: "FAILED", error: message, claimToken: null, claimedAt: null, claimExpiresAt: new Date(Date.now() + 60_000) }).where(and(eq(opsAnalyses.id, id), eq(opsAnalyses.claimToken, claimToken))).returning();
   return analysis;
+}
+
+export async function recordAnalysisInvocation(db: Db, values: typeof schema.opsAnalysisInvocations.$inferInsert) {
+  await db.insert(schema.opsAnalysisInvocations).values(values);
+}
+
+/** Manual reanalysis is bounded by persisted completion time, not web-process memory. */
+export async function requestAnalysisAgain(db: Db, incidentId: string, now = new Date()) {
+  const [analysis] = await db.select().from(opsAnalyses).where(eq(opsAnalyses.incidentId, incidentId)).limit(1);
+  if (!analysis) return createAnalysisIfAbsent(db, incidentId);
+  if (analysis.status === "RUNNING" || (analysis.completedAt && now.getTime() - analysis.completedAt.getTime() < 5 * 60_000)) return null;
+  const [requested] = await db.update(opsAnalyses).set({ status: "PENDING", error: null, claimToken: null, claimedAt: null, claimExpiresAt: null }).where(eq(opsAnalyses.id, analysis.id)).returning();
+  return requested;
 }

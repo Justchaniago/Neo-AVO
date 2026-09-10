@@ -8,6 +8,7 @@ import { findTask, markEventFailed, markEventProcessed, upsertTask } from "./rep
 import { projectTaskEvent } from "../tasks/projection";
 import { log } from "../observability/logger";
 import { queueHealthTransitionNotification } from "../health/notifications";
+import { recoverExpectedExecutionForEvent } from "../ops/expected-executions";
 
 type Db = NodePgDatabase<typeof schema>;
 export const MAX_PROCESSING_ATTEMPTS = 3;
@@ -36,6 +37,7 @@ export async function processClaimedEvent(db: Db, event: typeof schema.events.$i
       const processed = await markEventProcessed(tx, event.id, event.claimToken!);
       if (!processed) throw new Error("event claim was lost before completion");
     });
+    try { await recoverExpectedExecutionForEvent(db, event); } catch (error) { log("error", "expected_execution", "recovery_evaluation_failed", { eventId: event.eventId, errorClass: error instanceof Error ? error.name : "unknown" }); }
     return { status: "processed" as const };
   } catch (error) {
     log("error", "worker", "event_processing_failed", { eventId: event.eventId, projectId: event.projectId, environment: event.environment, errorClass: error instanceof Error ? error.name : "unknown" });

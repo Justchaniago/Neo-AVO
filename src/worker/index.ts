@@ -8,6 +8,8 @@ import { deliverOnePushCommand } from "../commands/delivery";
 import { expireCommands } from "../commands/repository";
 import { log } from "../observability/logger";
 import { monitorProjectHealth } from "../health/monitor";
+import { evaluateExpectedExecutions } from "../ops/expected-executions";
+import { collectResourceSnapshot } from "../ops/resources";
 
 export async function startWorker() {
   const env = loadEnv();
@@ -15,6 +17,8 @@ export async function startWorker() {
   const workerId = `worker-${process.pid}`;
   let stopping = false;
   let lastHealthCheckAt = 0;
+  let lastExpectedExecutionCheckAt = 0;
+  let lastResourceSnapshotAt = 0;
   const telegramPollState: TelegramPollState = { offset: 0, lastPollAt: 0 };
   const stop = () => { stopping = true; };
   process.once("SIGINT", stop);
@@ -28,6 +32,14 @@ export async function startWorker() {
       if (Date.now() - lastHealthCheckAt >= 5_000) {
         await monitorProjectHealth(db);
         lastHealthCheckAt = Date.now();
+      }
+      if (Date.now() - lastExpectedExecutionCheckAt >= 60_000) {
+        try { await evaluateExpectedExecutions(db); } catch (error) { log("error", "expected_execution", "evaluation_failed", { errorClass: error instanceof Error ? error.name : "unknown" }); }
+        lastExpectedExecutionCheckAt = Date.now();
+      }
+      if (Date.now() - lastResourceSnapshotAt >= 300_000) {
+        try { await collectResourceSnapshot(db); } catch (error) { log("error", "resources", "snapshot_failed", { errorClass: error instanceof Error ? error.name : "unknown" }); }
+        lastResourceSnapshotAt = Date.now();
       }
       await dispatchOneTelegramNotification(db);
       try {

@@ -24,6 +24,7 @@ export const projects = pgTable("projects", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   availability: text("availability").notNull().default("UNKNOWN"),
   operationalHealth: text("operational_health").notNull().default("UNKNOWN"),
+  businessHealth: text("business_health").notNull().default("UNKNOWN"),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   lastOperationalAt: timestamp("last_operational_at", { withTimezone: true }),
   lastSuccessfulExecutionAt: timestamp("last_successful_execution_at", { withTimezone: true }),
@@ -171,6 +172,14 @@ export const opsAnalyses = pgTable(
     confidence: integer("confidence_basis_points"),
     impact: text("impact"),
     recommendedActions: jsonb("recommended_actions").$type<{ capability: string; reason: string }[]>().notNull().default([]),
+    facts: jsonb("facts").$type<string[]>().notNull().default([]),
+    hypotheses: jsonb("hypotheses").$type<{ statement: string; confidence: "LOW" | "MEDIUM" | "HIGH" }[]>().notNull().default([]),
+    correlations: jsonb("correlations").$type<string[]>().notNull().default([]),
+    relevantRepositoryFiles: jsonb("relevant_repository_files").$type<string[]>().notNull().default([]),
+    recommendedChecks: jsonb("recommended_checks").$type<string[]>().notNull().default([]),
+    safetyConstraints: jsonb("safety_constraints").$type<string[]>().notNull().default([]),
+    engineeringEscalation: text("engineering_escalation"),
+    modelMetadata: jsonb("model_metadata").$type<Record<string, unknown>>().notNull().default({}),
     provider: text("provider").notNull().default("vertex_ai"),
     model: text("model"),
     error: text("error"),
@@ -184,6 +193,108 @@ export const opsAnalyses = pgTable(
   },
   (table) => ({ incidentCurrentIdx: uniqueIndex("ops_analyses_incident_current_idx").on(table.incidentId) }),
 );
+
+export const expectedExecutionContracts = pgTable("expected_execution_contracts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  expectedEventType: text("expected_event_type").notNull(),
+  schedule: text("schedule").notNull(),
+  timezone: text("timezone").notNull(),
+  gracePeriodSeconds: integer("grace_period_seconds").notNull(),
+  severityOnMiss: text("severity_on_miss").notNull().default("WARNING"),
+  enabled: text("enabled").notNull().default("true"),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** One durable record per contract occurrence; this is evidence, not a scheduler. */
+export const expectedExecutionOccurrences = pgTable("expected_execution_occurrences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  contractId: uuid("contract_id").notNull().references(() => expectedExecutionContracts.id, { onDelete: "cascade" }),
+  expectedAt: timestamp("expected_at", { withTimezone: true }).notNull(),
+  status: text("status").notNull().default("MISSED"),
+  missedAt: timestamp("missed_at", { withTimezone: true }).notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  sourceEventId: uuid("source_event_id").references(() => events.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ occurrenceIdx: uniqueIndex("expected_execution_occurrences_contract_time_idx").on(table.contractId, table.expectedAt) }));
+
+export const projectDependencies = pgTable("project_dependencies", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  dependencyKey: text("dependency_key").notNull(),
+  dependencyType: text("dependency_type").notNull().default("service"),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ projectDependencyIdx: uniqueIndex("project_dependencies_project_key_idx").on(table.projectId, table.dependencyKey) }));
+
+export const operationalChanges = pgTable("operational_changes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  externalId: text("external_id"),
+  summary: text("summary").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const projectRepositories = pgTable("project_repositories", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  owner: text("owner").notNull(),
+  repository: text("repository").notNull(),
+  defaultBranch: text("default_branch").notNull().default("main"),
+  readOnly: text("read_only").notNull().default("true"),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ projectRepositoryIdx: uniqueIndex("project_repositories_project_idx").on(table.projectId) }));
+
+export const recoveryEvidence = pgTable("recovery_evidence", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  incidentId: uuid("incident_id").notNull().references(() => incidents.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  summary: text("summary").notNull(),
+  sourceEventId: uuid("source_event_id").references(() => events.id),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  metadata: jsonb("metadata").notNull().default({}),
+});
+
+export const incidentMemory = pgTable("incident_memory", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  incidentId: uuid("incident_id").notNull().references(() => incidents.id, { onDelete: "cascade" }),
+  fingerprint: text("fingerprint").notNull(),
+  component: text("component"),
+  confirmedRootCause: text("confirmed_root_cause"),
+  failureDomain: text("failure_domain"),
+  fixSummary: text("fix_summary"),
+  recoveryEvidence: jsonb("recovery_evidence").notNull().default([]),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+});
+
+export const resourceSnapshots = pgTable("resource_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  scope: text("scope").notNull().default("neo-avo-host"),
+  cpuPercent: integer("cpu_percent"),
+  memoryPercent: integer("memory_percent"),
+  diskPercent: integer("disk_percent"),
+  serviceState: jsonb("service_state").notNull().default({}),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const opsAnalysisInvocations = pgTable("ops_analysis_invocations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  analysisId: uuid("analysis_id").notNull().references(() => opsAnalyses.id, { onDelete: "cascade" }),
+  trigger: text("trigger").notNull(),
+  model: text("model"),
+  status: text("status").notNull(),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const commands = pgTable("commands", {
   id: uuid("id").defaultRandom().primaryKey(),

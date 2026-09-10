@@ -57,6 +57,7 @@ export function ProjectCard({ project: p }: { project: Project }) {
       <div className="status-pair">
         <Availability value={p.availability} />
         <Badge value={p.operationalHealth} />
+        <Badge value={p.businessHealth} />
       </div>
       <div className="project-last">
         <span>LAST SEEN</span>
@@ -161,6 +162,10 @@ export function AnalysisContent({ detail }: { detail: IncidentDetail }) {
               </ul>
             </>
           )}
+          <div className="status-pair">
+            <button onClick={() => navigator.clipboard?.writeText([`PROJECT: ${detail.incident.projectId}`, `INCIDENT: ${detail.incident.id}`, `SEVERITY: ${detail.incident.severity}`, `BUSINESS IMPACT: ${a.impact ?? "INSUFFICIENT_EVIDENCE"}`, "MACHINE FACTS:", ...(a.facts ?? [detail.incident.reason]).map((fact) => `- ${fact}`), `FAILURE DOMAIN: ${a.likelyCause ?? "INSUFFICIENT_EVIDENCE"}`, "HYPOTHESES:", ...(a.hypotheses ?? []).map((hypothesis) => `- [${hypothesis.confidence}] ${hypothesis.statement}`), "RELEVANT REPOSITORY FILES:", ...(a.relevantRepositoryFiles ?? []).map((file) => `- ${file}`), "CHANGE CORRELATION:", ...(a.correlations ?? []).map((correlation) => `- ${correlation}`), "RECOMMENDED INVESTIGATION ORDER:", ...(a.recommendedChecks ?? []).map((check) => `- ${check}`), "SAFETY CONSTRAINTS:", ...(a.safetyConstraints ?? ["AI output is advisory; do not mutate production blindly."]).map((constraint) => `- ${constraint}`), `IDEMPOTENCY / RECOVERY: ${detail.incident.resolutionReason ?? "Require a confirmed business effect."}`, "REQUIRED ACCEPTANCE: Verify the business effect and absence of duplicates; do not blindly mutate production."].join("\n"))}>Copy engineering escalation</button>
+            <button onClick={async () => { await fetch(`/api/v1/dashboard/incidents/${encodeURIComponent(detail.incident.id)}/analyze`, { method: "POST" }); }}>Analyze again</button>
+          </div>
         </>
       )}
     </Panel>
