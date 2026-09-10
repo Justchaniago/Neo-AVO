@@ -26,7 +26,7 @@ function formatMonthLabel(monthStr: string) {
 
 const activeCommandStatuses = ["REQUESTED", "SENT", "ACKNOWLEDGED"];
 
-function PixelProgressBar({ isRunning }: { isRunning: boolean }) {
+function PixelProgressBar({ isRunning, action }: { isRunning: boolean; action: "AUDIT" | "RESOLVE" }) {
   const [progress, setProgress] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
 
@@ -56,7 +56,11 @@ function PixelProgressBar({ isRunning }: { isRunning: boolean }) {
   return (
     <div style={{ marginTop: "10px", width: "100%" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", fontWeight: "bold", fontFamily: "var(--mono)", marginBottom: "4px" }}>
-        <span>{elapsedMs >= 15_000 ? "AUDIT STILL RUNNING..." : "EXECUTING AUDIT..."}</span>
+        <span>
+          {action === "RESOLVE"
+            ? (elapsedMs >= 15_000 ? "RESOLVE STILL RUNNING..." : "RESOLVING MISSING DATES...")
+            : (elapsedMs >= 15_000 ? "AUDIT STILL RUNNING..." : "EXECUTING AUDIT...")}
+        </span>
         <span>{progress}%</span>
       </div>
       <div
@@ -214,6 +218,7 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
 
       {error && <p style={{ color: "var(--coral)", fontSize: "13px" }}>{error}</p>}
       {latestAuditCommand && <AuditResultDisplay command={latestAuditCommand} resolveCommand={latestResolveCommand} onResolve={handleResolve} resolvingStore={resolvingStore} />}
+      {latestResolveCommand && <ResolveResultDisplay command={latestResolveCommand} />}
     </div>
   );
 }
@@ -263,7 +268,7 @@ function AuditResultDisplay({
             {command.status === "SENT" && "QRA received the audit command. Waiting for acknowledgement or result..."}
             {command.status === "ACKNOWLEDGED" && "QRA is executing the audit. Waiting for the persisted result..."}
           </p>
-          <PixelProgressBar isRunning={isRunning} />
+          <PixelProgressBar isRunning={isRunning} action="AUDIT" />
           <p className="muted" style={{ margin: "8px 0 0", fontSize: "12px" }}>
             This view refreshes automatically every 2 seconds while the command is active.
           </p>
@@ -324,6 +329,91 @@ function AuditResultDisplay({
             <span>Mutation: {result.mutation || "NONE"}</span>
             {result.durationMs != null && <span>Duration: {(result.durationMs / 1000).toFixed(1)}s</span>}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResolveResultDisplay({
+  command,
+}: {
+  command: NonNullable<ProjectDetail["commands"]>[number];
+}) {
+  const isRunning = activeCommandStatuses.includes(command.status);
+  const result = command.result as {
+    dates?: { date: string; status: string; reason?: string; runId?: string }[];
+    completed?: number;
+    skipped?: number;
+    failed?: number;
+    conflicts?: number;
+    mutation?: string;
+    durationMs?: number;
+  } | null;
+
+  return (
+    <div className="audit-result-card" style={{ border: "var(--line)", borderRadius: "var(--radius)", padding: "16px", background: "white", marginTop: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+        <div>
+          <span className="eyebrow" style={{ margin: 0 }}>LATEST RESOLVE RESULT</span>
+          <h4 style={{ margin: "4px 0 0 0" }}>
+            {command.arguments?.month ? formatMonthLabel(String(command.arguments.month)) : "Resolve Missing Dates"} ({String(command.arguments?.store || "UNKNOWN")})
+          </h4>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <Badge value={command.status} />
+          <Time value={command.requestedAt} />
+        </div>
+      </div>
+
+      {isRunning && (
+        <div>
+          <p className="muted" style={{ margin: 0 }}>
+            {command.status === "REQUESTED" && "Resolve command queued. Waiting for QRA to pick it up..."}
+            {command.status === "SENT" && "QRA received the resolve command. Waiting for acknowledgement or result..."}
+            {command.status === "ACKNOWLEDGED" && "QRA is processing only the selected missing dates..."}
+          </p>
+          <PixelProgressBar isRunning={isRunning} action="RESOLVE" />
+          <p className="muted" style={{ margin: "8px 0 0", fontSize: "12px" }}>
+            This view refreshes automatically every 2 seconds while the resolve command is active.
+          </p>
+        </div>
+      )}
+
+      {command.status === "FAILED" && (
+        <p style={{ color: "var(--coral)", margin: 0 }}>
+          Resolve Failed: {command.failureReason || "Unknown failure"}
+        </p>
+      )}
+
+      {command.status === "REJECTED" && (
+        <p style={{ color: "var(--coral)", margin: 0 }}>
+          Resolve Rejected: {command.rejectionReason || "Command rejected"}
+        </p>
+      )}
+
+      {command.status === "COMPLETED" && result && (
+        <div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", fontSize: "12px", color: "var(--secondary)", borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "10px" }}>
+            <span>Completed: {result.completed ?? 0}</span>
+            <span>Skipped: {result.skipped ?? 0}</span>
+            <span>Failed: {result.failed ?? 0}</span>
+            <span>Conflicts: {result.conflicts ?? 0}</span>
+            <span>Mutation: {result.mutation || "NO_OVERWRITE"}</span>
+            {result.durationMs != null && <span>Duration: {(result.durationMs / 1000).toFixed(1)}s</span>}
+          </div>
+          {result.dates && result.dates.length > 0 && (
+            <div style={{ display: "grid", gap: "6px", fontSize: "12px" }}>
+              {result.dates.map((item) => (
+                <div key={`${item.date}-${item.status}`} style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+                  <span>{item.date}</span>
+                  <span style={{ color: item.status === "COMPLETED" ? "var(--secondary)" : item.status === "FAILED" ? "var(--coral)" : "var(--orange)" }}>
+                    {item.status}{item.reason ? ` — ${item.reason}` : ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
