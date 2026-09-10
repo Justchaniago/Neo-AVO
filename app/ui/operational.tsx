@@ -4,7 +4,7 @@ import { Icon } from "./icons";
 
 import Link from "next/link";
 import { AcknowledgeIncident } from "./existing-controls";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useDashboard, useRead } from "./data";
 import {
@@ -259,9 +259,6 @@ export function ActivityFeed({
   }, [compact, restored, storageKey, project, status]);
   const [displayed, setDisplayed] = useState(events);
   const [updated, setUpdated] = useState(false);
-  const compactListRef = useRef<HTMLDivElement>(null);
-  const [compactHasOverflow, setCompactHasOverflow] = useState(false);
-  const [compactAtBottom, setCompactAtBottom] = useState(true);
   const displayedIds = new Set(displayed.map(e => `${e.project.id}:${e.id}`));
   const incoming = events.filter(e => meaningful(e) && !displayedIds.has(`${e.project.id}:${e.id}`)).length;
   const latest = new Map(events.map(event => [`${event.project.id}:${event.id}`, event]));
@@ -276,23 +273,6 @@ export function ActivityFeed({
       (!status || (e.severity || e.status || "") === status) &&
       (!context || [e.store, e.domain].includes(context)),
   );
-  useEffect(() => {
-    if (!compact) return;
-    const element = compactListRef.current;
-    if (!element) return;
-    const updateScrollState = () => {
-      const hasOverflow = element.scrollHeight > element.clientHeight + 1;
-      setCompactHasOverflow(hasOverflow);
-      setCompactAtBottom(!hasOverflow || element.scrollTop + element.clientHeight >= element.scrollHeight - 2);
-    };
-    updateScrollState();
-    const observer = new ResizeObserver(updateScrollState);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [compact, filtered.length]);
-  const compactScrollClass = compact
-    ? `activity-scroll-window${compactHasOverflow ? " is-scrollable" : ""}${compactAtBottom ? " is-at-bottom" : ""}`
-    : "";
   return (
     <>
       {!compact && incoming > 0 && <div className="activity-update" role="status"><button onClick={() => { setDisplayed(events); setUpdated(true); }}>{incoming} new {incoming === 1 ? "event" : "events"} — show updates <Icon name="refresh" /></button><span>Your current view is preserved.</span></div>}
@@ -367,16 +347,7 @@ export function ActivityFeed({
             : "Normalized operational events will appear when reported. Heartbeats are reflected in availability."}
         </Empty>
       ) : (
-        <div
-          ref={compact ? compactListRef : undefined}
-          className={compactScrollClass}
-          tabIndex={compact && compactHasOverflow ? 0 : undefined}
-          aria-label={compact ? "Scrollable recent activity log" : undefined}
-          onScroll={compact ? (event) => {
-            const element = event.currentTarget;
-            setCompactAtBottom(element.scrollTop + element.clientHeight >= element.scrollHeight - 2);
-          } : undefined}
-        >
+        <ScrollViewport className={compact ? "overview-scroll-viewport" : ""} label={compact ? "Scrollable recent activity log" : undefined}>
           <div className={`activity-list ${updated ? "just-updated" : ""}`} onAnimationEnd={() => setUpdated(false)}>
           {filtered.map((e) => (
             <button
@@ -409,7 +380,7 @@ export function ActivityFeed({
             </button>
           ))}
           </div>
-        </div>
+        </ScrollViewport>
       )}
       {selected && (
         <Overlay
@@ -462,5 +433,46 @@ export function ActivityFeed({
         </Overlay>
       )}
     </>
+  );
+}
+
+export function ScrollViewport({
+  children,
+  className = "",
+  label,
+}: {
+  children: ReactNode;
+  className?: string;
+  label?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const update = () => {
+      const overflowing = element.scrollHeight > element.clientHeight + 1;
+      setHasOverflow(overflowing);
+      setAtBottom(!overflowing || element.scrollTop + element.clientHeight >= element.scrollHeight - 2);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [children]);
+  return (
+    <div
+      ref={ref}
+      className={`scroll-viewport ${className}${hasOverflow ? " is-scrollable" : ""}${atBottom ? " is-at-bottom" : ""}`}
+      tabIndex={hasOverflow ? 0 : undefined}
+      aria-label={label}
+      onScroll={(event) => {
+        const element = event.currentTarget;
+        setAtBottom(element.scrollTop + element.clientHeight >= element.scrollHeight - 2);
+      }}
+    >
+      {children}
+    </div>
   );
 }

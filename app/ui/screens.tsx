@@ -31,6 +31,7 @@ import {
   IncidentContent,
   IncidentRows,
   ProjectCard,
+  ScrollViewport,
 } from "./operational";
 
 function Refresh() {
@@ -235,11 +236,17 @@ function ProjectCollection({ compact = false }: { compact?: boolean }) {
       </Empty>
     );
   return (
-    <div className={compact ? "project-stack" : "project-grid"}>
-      {projects.data.projects.map((p) => (
-        <ProjectCard key={p.id} project={p} />
-      ))}
-    </div>
+    compact ? (
+      <ScrollViewport className="overview-scroll-viewport" label="Scrollable project health list">
+        <div className="project-stack">
+          {projects.data.projects.map((p) => <ProjectCard key={p.id} project={p} />)}
+        </div>
+      </ScrollViewport>
+    ) : (
+      <div className="project-grid">
+        {projects.data.projects.map((p) => <ProjectCard key={p.id} project={p} />)}
+      </div>
+    )
   );
 }
 export function ProjectsScreen() {
