@@ -4,7 +4,7 @@ const repo = vi.hoisted(() => ({ createAnalysisIfAbsent: vi.fn(), createIncident
 vi.mock("../src/incidents/repository", () => repo);
 vi.mock("../src/ops/repository", () => ({ createAnalysisIfAbsent: repo.createAnalysisIfAbsent }));
 
-import { recordIncidentForEvent, resolveIncidentForEvent } from "../src/incidents/usecases";
+import { recordIncidentForEvent, resolveIncidentForEvent, manuallyResolveIncident } from "../src/incidents/usecases";
 import { incidentTrigger, recoveryKey, shouldNotifyImmediately } from "../src/incidents/types";
 
 const project = { id: "project-a", environment: "production", criticality: "normal", expectedNextExecutionAt: null, gracePeriodSeconds: null, lastSuccessfulExecutionAt: null };
@@ -48,5 +48,24 @@ describe("deterministic incident engine", () => {
     expect(incidentTrigger(project, { id: "event-6", type: "tele_auto.run.needs_clarification", occurredAt: now, data: { runId: "run-1" } }, now)).toBeNull();
     expect(incidentTrigger(project, { id: "event-7", type: "tele_auto.run.effect_uncertain", occurredAt: now, data: { runId: "run-1", errorCode: "SHEETS_TIMEOUT" } }, now)).toMatchObject({ type: "TELE_AUTO_EFFECT_UNCERTAIN", severity: "CRITICAL", dedupKey: "project-a:production:tele-auto:effect-uncertain:run-1" });
     expect(incidentTrigger(project, { id: "event-8", type: "tele_auto.sheets.schema_mismatch", occurredAt: now, data: { errorCode: "HEADER_MISSING" } }, now)).toMatchObject({ type: "TELE_AUTO_SHEETS_SCHEMA_MISMATCH", severity: "HIGH" });
+  });
+
+  it("supports manual owner resolution with audit event and without fabricating recovery evidence", async () => {
+    const mockDb = {
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([{ id: "incident-legacy-1", projectId: "p1", environment: "production", state: "OPEN" }]),
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockResolvedValue([{ id: "incident-legacy-1", state: "RESOLVED", resolutionReason: "Manual owner resolution: Checked manually" }]),
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockResolvedValue([]),
+    };
+
+    const res = await manuallyResolveIncident(mockDb as never, "incident-legacy-1", { resolutionNote: "Checked manually" }, now);
+    expect(res).toMatchObject({ state: "RESOLVED" });
+    expect(mockDb.insert).toHaveBeenCalled();
   });
 });

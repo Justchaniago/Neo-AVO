@@ -41,6 +41,71 @@ export function AcknowledgeIncident({ id }: { id: string }) {
     </div>
   );
 }
+export function ResolveIncident({ id, state }: { id: string; state: string }) {
+  const { refresh } = useDashboard();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState("");
+
+  if (state === "RESOLVED") return null;
+
+  async function resolve() {
+    setPending(true);
+    setMessage("");
+    try {
+      const response = await fetch(
+        `/api/v1/dashboard/incidents/${encodeURIComponent(id)}/resolve`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ resolutionNote: note }),
+        },
+      );
+      if (!response.ok) throw new Error();
+      setMessage("Incident manually resolved. Refreshing state.");
+      setOpen(false);
+      refresh();
+    } catch {
+      setMessage("Manual resolution could not be confirmed.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="existing-control">
+      {!open ? (
+        <button disabled={pending} onClick={() => setOpen(true)}>
+          Resolve incident
+        </button>
+      ) : (
+        <div className="resolve-dialog stack">
+          <p><strong>Confirm manual incident resolution</strong></p>
+          <label>
+            Resolution note (optional):
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="e.g. Verified system recovered after manual check"
+            />
+          </label>
+          <div className="status-pair">
+            <button disabled={pending} onClick={resolve}>
+              {pending ? "Resolving…" : "Confirm Resolve"}
+            </button>
+            <button disabled={pending} onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {message && <p role="status" className="muted">{message}</p>}
+    </div>
+  );
+}
+
 export function ProjectControls({ detail }: { detail: ProjectDetail }) {
   const { refresh } = useDashboard();
   const [pending, setPending] = useState(false);

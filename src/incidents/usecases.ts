@@ -1,5 +1,5 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 
 import * as schema from "../db/schema";
 import { createIncident, createNotification, findDeduplicatedIncident, findOpenIncidentByKey, resolveIncident, updateIncident } from "./repository";
@@ -34,4 +34,61 @@ export async function resolveIncidentForEvent(db: Db, project: IncidentProject, 
 export async function acknowledgeIncident(db: Db, incidentId: string, now = new Date()) {
   const [incident] = await db.update(schema.incidents).set({ state: "ACKNOWLEDGED", acknowledgedAt: now, updatedAt: now }).where(and(eq(schema.incidents.id, incidentId), eq(schema.incidents.state, "OPEN"))).returning();
   return incident;
+}
+
+export async function manuallyResolveIncident(
+  db: Db,
+  incidentId: string,
+  options: { resolutionNote?: string; resolvedBy?: string } = {},
+  now = new Date(),
+) {
+  const [existing] = await db
+    .select()
+    .from(schema.incidents)
+    .where(and(eq(schema.incidents.id, incidentId), ne(schema.incidents.state, "RESOLVED")))
+    .limit(1);
+
+  if (!existing) return null;
+
+  const note = options.resolutionNote?.trim();
+  const resolvedBy = options.resolvedBy || "owner";
+  const reasonStr = note ? `Manual owner resolution: ${note}` : "Manual owner resolution";
+
+  const [resolved] = await db
+    .update(schema.incidents)
+    .set({
+      state: "RESOLVED",
+      resolvedAt: now,
+      resolutionReason: reasonStr,
+      updatedAt: now,
+    })
+    .where(and(eq(schema.incidents.id, incidentId), ne(schema.incidents.state, "RESOLVED")))
+    .returning();
+
+  if (!resolved) return null;
+
+  const auditEventId = `audit-manual-resolve-${incidentId}-${now.getTime()}`;
+  await db
+    .insert(schema.events)
+    .values({
+      eventId: auditEventId,
+      schemaVersion: 1,
+      projectId: existing.projectId,
+      environment: existing.environment,
+      type: "incident.manually_resolved",
+      occurredAt: now,
+      data: {
+        incident_id: existing.id,
+        project_id: existing.projectId,
+        previous_status: existing.state,
+        new_status: "RESOLVED",
+        resolved_at: now.toISOString(),
+        resolved_by: resolvedBy,
+        resolution_note: note || null,
+        resolution_mode: "MANUAL_OWNER_RESOLUTION",
+      },
+    })
+    .onConflictDoNothing();
+
+  return resolved;
 }

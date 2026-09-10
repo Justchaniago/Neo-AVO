@@ -3,7 +3,7 @@
 import { Icon } from "./icons";
 
 import Link from "next/link";
-import { AcknowledgeIncident } from "./existing-controls";
+import { AcknowledgeIncident, ResolveIncident } from "./existing-controls";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useDashboard, useRead } from "./data";
@@ -186,6 +186,30 @@ export function IncidentContent({ id }: { id: string }) {
     return <ErrorState retry={refresh}>{result.error}</ErrorState>;
   if (!result.data) return <Loading />;
   const { incident: i, evidence } = result.data;
+  const isManualResolution = Boolean(i.resolutionReason?.includes("Manual owner resolution") || i.resolutionReason?.includes("MANUAL_OWNER_RESOLUTION"));
+  const manualNote = isManualResolution && i.resolutionReason?.includes(":") ? i.resolutionReason.split(": ").slice(1).join(": ") : null;
+  const factRows: [string, ReactNode][] = [
+    [
+      "Project",
+      <Link key="project" href={`/projects/${i.projectId}`}>
+        {projects.data?.projects.find((project) => project.id === i.projectId)?.name || "View project"} <Icon name="arrow" />
+      </Link>,
+    ],
+    ["Environment", i.environment],
+    ["First seen", <Time key="first" value={i.firstSeenAt} />],
+    ["Last seen", <Time key="last" value={i.lastSeenAt} />],
+    ["Occurrences", i.occurrenceCount],
+    ["Dependency", i.dependencyKey],
+    ["Recovery", isManualResolution ? "Manual owner resolution" : (i.resolutionReason ? "Automatic recovery verified" : "No recovery recorded")],
+  ];
+  if (isManualResolution) {
+    factRows.push(["Resolved by", "owner"]);
+    if (manualNote) factRows.push(["Resolution note", manualNote]);
+  }
+  if (i.resolvedAt) {
+    factRows.push(["Resolved", <Time key="resolved" value={i.resolvedAt} />]);
+  }
+
   return (
     <div className="stack">
       <Panel
@@ -199,24 +223,11 @@ export function IncidentContent({ id }: { id: string }) {
         </div>
         <p>{i.reason}</p>
         <details className="evidence-details"><summary>Incident identifier</summary><Copy value={i.id} label="incident ID" /></details>
-        <Facts
-          rows={[
-            [
-              "Project",
-              <Link key="project" href={`/projects/${i.projectId}`}>
-                {projects.data?.projects.find(project => project.id === i.projectId)?.name || "View project"} <Icon name="arrow" />
-              </Link>,
-            ],
-            ["Environment", i.environment],
-            ["First seen", <Time key="first" value={i.firstSeenAt} />],
-            ["Last seen", <Time key="last" value={i.lastSeenAt} />],
-            ["Occurrences", i.occurrenceCount],
-            ["Dependency", i.dependencyKey],
-            ["Recovery", i.resolutionReason || "No recovery recorded"],
-            ["Resolved", <Time key="resolved" value={i.resolvedAt} />],
-          ]}
-        />
-        {i.state === "OPEN" && <AcknowledgeIncident id={i.id} />}
+        <Facts rows={factRows} />
+        <div className="status-pair">
+          {i.state === "OPEN" && <AcknowledgeIncident id={i.id} />}
+          {i.state !== "RESOLVED" && <ResolveIncident id={i.id} state={i.state} />}
+        </div>
       </Panel>
       <Panel title="Linked evidence" label="Normalized event references">
         {evidence.length ? (
