@@ -62,7 +62,9 @@ export type ProjectDetail = {
   expectedExecutions?: Record<string, unknown>[];
   dependencies?: Record<string, unknown>[];
   changes?: Record<string, unknown>[];
+  timeline?: { items: TimelineItem[]; nextBefore: string | null };
 };
+export type TimelineItem = { timestamp: string; kind: "EVENT" | "TASK" | "EXPECTED_EXECUTION" | "CHANGE" | "INCIDENT" | "AI_ANALYSIS" | "RECOVERY" | "RESOLUTION"; severity: string | null; status: string | null; title: string; summary: string; sourceId: string; projectId: string; metadataSafe: Record<string, string | number | null> };
 export type Incident = {
   id: string;
   projectId: string;
@@ -100,6 +102,7 @@ export type IncidentDetail = {
   incident: Incident;
   evidence: { id: string; eventId: string; linkedAt: string }[];
   analysis?: Analysis | null;
+  timeline?: { items: TimelineItem[]; nextBefore: string | null };
 };
 
 export function tone(value: string): string {

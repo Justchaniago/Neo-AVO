@@ -32,6 +32,7 @@ import {
   IncidentContent,
   IncidentRows,
   ProjectCard,
+  OperationalTimeline,
   ScrollViewport,
 } from "./operational";
 
@@ -411,6 +412,9 @@ export function ProjectScreen({ id }: { id: string }) {
               label="Observed events"
             >
               <ActivityFeed compact events={events} />
+            </Panel>
+            <Panel className="span-full" title="Operational timeline" label="Normalized chronological projection">
+              <OperationalTimeline items={result.data.timeline?.items ?? []} />
             </Panel>
           </div>
         )}

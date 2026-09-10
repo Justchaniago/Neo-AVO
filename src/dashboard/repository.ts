@@ -4,6 +4,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "../db/schema";
 import { commands, events, tasks, incidents, expectedExecutionContracts, projectDependencies, operationalChanges, recoveryEvidence } from "../db/schema";
 import { listProjects, findProjectById } from "../projects/repository";
+import { getProjectTimeline } from "./timeline";
 
 type Db = NodePgDatabase<typeof schema>;
 
@@ -26,5 +27,5 @@ export async function getProjectDetail(db: Db, projectId: string) {
     const data = event.data && typeof event.data === "object" ? event.data as Record<string, unknown> : {};
     return { id: event.id, eventId: event.eventId, type: event.type, occurredAt: event.occurredAt, receivedAt: event.receivedAt, sequence: event.sequence, runId: typeof data.runId === "string" ? data.runId : null, store: typeof data.store === "string" ? data.store : null, domain: typeof data.domain === "string" ? data.domain : null, status: typeof data.status === "string" ? data.status : null, severity: typeof data.severity === "string" ? data.severity : null };
   });
-  return { project: (() => { const { commandAuthCiphertext: _c, commandAuthIv: _i, commandAuthTag: _t, ...safe } = project; return safe; })(), tasks: projectTasks, recentEvents: activity, incidents: activeIncidents, expectedExecutions: contracts, dependencies, changes, recoveryEvidence: await db.select().from(recoveryEvidence).where(eq(recoveryEvidence.incidentId, activeIncidents[0]?.id ?? "00000000-0000-0000-0000-000000000000")).limit(20), commands: recentCommands.map((c) => ({ id: c.id, commandId: c.commandId, capability: c.capability, arguments: c.arguments as Record<string, unknown> | null, status: c.status, requestedAt: c.requestedAt.toISOString(), result: c.result as Record<string, unknown> | null, failureReason: c.failureReason, rejectionReason: c.rejectionReason })) };
+  return { project: (() => { const { commandAuthCiphertext: _c, commandAuthIv: _i, commandAuthTag: _t, ...safe } = project; return safe; })(), tasks: projectTasks, recentEvents: activity, incidents: activeIncidents, expectedExecutions: contracts, dependencies, changes, recoveryEvidence: await db.select().from(recoveryEvidence).where(eq(recoveryEvidence.incidentId, activeIncidents[0]?.id ?? "00000000-0000-0000-0000-000000000000")).limit(20), timeline: await getProjectTimeline(db, projectId, { limit: 100 }), commands: recentCommands.map((c) => ({ id: c.id, commandId: c.commandId, capability: c.capability, arguments: c.arguments as Record<string, unknown> | null, status: c.status, requestedAt: c.requestedAt.toISOString(), result: c.result as Record<string, unknown> | null, failureReason: c.failureReason, rejectionReason: c.rejectionReason })) };
 }
