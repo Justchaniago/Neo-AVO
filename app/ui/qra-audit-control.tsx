@@ -93,11 +93,13 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
   const [month, setMonth] = useState(getDefaultJakartaMonth);
   const [store, setStore] = useState<"ALL" | "PMS" | "TP6">("ALL");
   const [submitting, setSubmitting] = useState(false);
+  const [resolvingStore, setResolvingStore] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const isQraProject = detail.project.slug === "qra-system" || detail.project.capabilities.includes("qra.audit_missing_dates");
   const latestAuditCommand = detail.commands.find((c) => c.capability === "qra.audit_missing_dates");
-  const auditIsRunning = !!latestAuditCommand && activeCommandStatuses.includes(latestAuditCommand.status);
+  const latestResolveCommand = detail.commands.find((c) => c.capability === "qra.resolve_missing_dates");
+  const auditIsRunning = [latestAuditCommand, latestResolveCommand].some((command) => !!command && activeCommandStatuses.includes(command.status));
 
   useEffect(() => {
     if (!auditIsRunning) return;
@@ -133,6 +135,33 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
       setError(err instanceof Error ? err.message : "Error issuing command");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleResolve(storeName: string, dates: string[]) {
+    setResolvingStore(storeName);
+    setError(null);
+    try {
+      const response = await fetch("/api/v1/commands", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          projectId: detail.project.id,
+          environment: detail.project.environment,
+          capability: "qra.resolve_missing_dates",
+          arguments: { month, store: storeName, dates },
+          validUntil: new Date(Date.now() + 30 * 60_000).toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to issue resolve command");
+      }
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error issuing resolve command");
+    } finally {
+      setResolvingStore(null);
     }
   }
 
@@ -183,12 +212,23 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
         </div>
       )}
 
-      {latestAuditCommand && <AuditResultDisplay command={latestAuditCommand} />}
+      {error && <p style={{ color: "var(--coral)", fontSize: "13px" }}>{error}</p>}
+      {latestAuditCommand && <AuditResultDisplay command={latestAuditCommand} resolveCommand={latestResolveCommand} onResolve={handleResolve} resolvingStore={resolvingStore} />}
     </div>
   );
 }
 
-function AuditResultDisplay({ command }: { command: NonNullable<ProjectDetail["commands"]>[number] }) {
+function AuditResultDisplay({
+  command,
+  resolveCommand,
+  onResolve,
+  resolvingStore,
+}: {
+  command: NonNullable<ProjectDetail["commands"]>[number];
+  resolveCommand?: NonNullable<ProjectDetail["commands"]>[number];
+  onResolve: (store: string, dates: string[]) => void;
+  resolvingStore: string | null;
+}) {
   const isRunning = command.status === "REQUESTED" || command.status === "SENT" || command.status === "ACKNOWLEDGED";
   const result = command.result as {
     commandId?: string;
@@ -263,6 +303,16 @@ function AuditResultDisplay({ command }: { command: NonNullable<ProjectDetail["c
                 )}
                 {storeData.missingDates.length === 0 && storeData.partialDates.length === 0 && (
                   <div style={{ fontSize: "12px", color: "var(--secondary)" }}>No missing or partial dates.</div>
+                )}
+                {storeData.missingDates.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onResolve(storeName, storeData.missingDates)}
+                    disabled={!!resolvingStore || (resolveCommand != null && activeCommandStatuses.includes(resolveCommand.status))}
+                    style={{ marginTop: "10px", fontSize: "12px" }}
+                  >
+                    {resolvingStore === storeName ? "Initiating..." : `Resolve ${storeData.missingDates.length} missing date${storeData.missingDates.length === 1 ? "" : "s"}`}
+                  </button>
                 )}
               </div>
             ))}

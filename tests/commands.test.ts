@@ -38,4 +38,11 @@ describe("bounded commands", () => {
     expect(validateCapability("qra.audit_missing_dates", { month: "2026-09", store: "INVALID" }, ["qra.audit_missing_dates"]).ok).toBe(false);
     expect(validateCapability("qra.audit_missing_dates", { month: "2026-09", store: "ALL", extraSql: "DROP TABLE" }, ["qra.audit_missing_dates"]).ok).toBe(false);
   });
+
+  it("validates resolve commands as unique dates within one month", () => {
+    expect(validateCapability("qra.resolve_missing_dates", { month: "2026-09", store: "PMS", dates: ["2026-09-03", "2026-09-07"] }, ["qra.resolve_missing_dates"]).ok).toBe(true);
+    expect(validateCapability("qra.resolve_missing_dates", { month: "2026-09", store: "PMS", dates: ["2026-08-31"] }, ["qra.resolve_missing_dates"]).ok).toBe(false);
+    expect(validateCapability("qra.resolve_missing_dates", { month: "2026-09", store: "PMS", dates: ["2026-09-03", "2026-09-03"] }, ["qra.resolve_missing_dates"]).ok).toBe(false);
+    expect(validateCapability("qra.resolve_missing_dates", { month: "2026-09", store: "ALL", dates: ["2026-09-03"] }, ["qra.resolve_missing_dates"]).ok).toBe(false);
+  });
 });

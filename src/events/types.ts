@@ -19,6 +19,21 @@ const teleAutoData = z.object({
   for (const key of Object.keys(value.metadata ?? {})) if (forbiddenTelemetryKey.test(key)) context.addIssue({ code: "custom", path: ["metadata", key], message: "sensitive telemetry key is not allowed" });
 });
 
+const qraCommandData = z.object({
+  commandId: z.string().trim().min(1).max(200),
+  month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  store: z.enum(["PMS", "TP6", "ALL"]).optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  status: z.enum(["STARTED", "COMPLETED", "FAILED", "SKIPPED", "CONFLICT"]).optional(),
+  durationMs: z.number().int().nonnegative().max(86_400_000).optional(),
+  mutation: z.enum(["NONE", "EMPTY_CELLS_ONLY"]).optional(),
+  reason: z.string().trim().max(500).optional(),
+  completed: z.number().int().nonnegative().optional(),
+  skipped: z.number().int().nonnegative().optional(),
+  conflicts: z.number().int().nonnegative().optional(),
+  failed: z.number().int().nonnegative().optional(),
+}).strict();
+
 export const eventDataSchemas = {
   "system.heartbeat": objectData,
   "project.started": objectData,
@@ -39,6 +54,14 @@ export const eventDataSchemas = {
   "command.acknowledged": identified("commandId"),
   "command.completed": identified("commandId"),
   "command.failed": identified("commandId"),
+  "qra.audit.started": qraCommandData,
+  "qra.audit.completed": qraCommandData,
+  "qra.audit.failed": qraCommandData,
+  "qra.resolve_missing_dates.started": qraCommandData,
+  "qra.resolve_missing_dates.date_completed": qraCommandData,
+  "qra.resolve_missing_dates.date_conflict": qraCommandData,
+  "qra.resolve_missing_dates.completed": qraCommandData,
+  "qra.resolve_missing_dates.failed": qraCommandData,
   "tele_auto.run.received": teleAutoData,
   "tele_auto.run.processing": teleAutoData,
   "tele_auto.run.needs_clarification": teleAutoData,

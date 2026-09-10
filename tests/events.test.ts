@@ -60,4 +60,13 @@ describe("durable event ingestion contract", () => {
   it("rejects sensitive metadata keys in Tele Auto telemetry", () => {
     expect(validateEventBatch({ events: [{ ...validEvent, type: "tele_auto.run.failed", data: { runId: "run_1", metadata: { token: "should-not-pass" } } }] }, project)).toMatchObject({ ok: false, kind: "invalid_event_data" });
   });
+
+  it("accepts bounded QRA audit and resolve observation events", () => {
+    for (const [type, data] of [
+      ["qra.audit.completed", { commandId: "cmd_a", month: "2026-09", store: "PMS", status: "COMPLETED", mutation: "NONE" }],
+      ["qra.resolve_missing_dates.date_completed", { commandId: "cmd_r", month: "2026-09", store: "PMS", date: "2026-09-03", status: "COMPLETED", mutation: "EMPTY_CELLS_ONLY" }],
+    ] as const) {
+      expect(validateEventBatch({ events: [{ ...validEvent, type, data }] }, project).ok).toBe(true);
+    }
+  });
 });
