@@ -24,21 +24,25 @@ function formatMonthLabel(monthStr: string) {
   }
 }
 
+const activeCommandStatuses = ["REQUESTED", "SENT", "ACKNOWLEDGED"];
+
 function PixelProgressBar({ isRunning }: { isRunning: boolean }) {
   const [progress, setProgress] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
     if (!isRunning) {
       setProgress(100);
+      setElapsedMs(0);
       return;
     }
     setProgress(0);
     const startTime = Date.now();
-    const duration = 12000; // 12 seconds expected duration
 
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      // Exponential ease to 95% while waiting, complete when finished
+      setElapsedMs(elapsed);
+      // Exponential ease to 95% while waiting; the server result completes it.
       const rawPct = Math.min(95, Math.floor((1 - Math.exp(-elapsed / 3500)) * 100));
       setProgress(rawPct);
     }, 100);
@@ -52,7 +56,7 @@ function PixelProgressBar({ isRunning }: { isRunning: boolean }) {
   return (
     <div style={{ marginTop: "10px", width: "100%" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", fontWeight: "bold", fontFamily: "var(--mono)", marginBottom: "4px" }}>
-        <span>EXECUTING AUDIT...</span>
+        <span>{elapsedMs >= 15_000 ? "AUDIT STILL RUNNING..." : "EXECUTING AUDIT..."}</span>
         <span>{progress}%</span>
       </div>
       <div
@@ -92,9 +96,16 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
   const [error, setError] = useState<string | null>(null);
 
   const isQraProject = detail.project.slug === "qra-system" || detail.project.capabilities.includes("qra.audit_missing_dates");
-  if (!isQraProject) return null;
-
   const latestAuditCommand = detail.commands.find((c) => c.capability === "qra.audit_missing_dates");
+  const auditIsRunning = !!latestAuditCommand && activeCommandStatuses.includes(latestAuditCommand.status);
+
+  useEffect(() => {
+    if (!auditIsRunning) return;
+    const timer = setInterval(() => refresh(), 2_000);
+    return () => clearInterval(timer);
+  }, [auditIsRunning, refresh]);
+
+  if (!isQraProject) return null;
 
   async function handleRunAudit(e: React.FormEvent) {
     e.preventDefault();
@@ -134,7 +145,7 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
         </div>
         <button
           onClick={() => setOpen(true)}
-          disabled={submitting || latestAuditCommand?.status === "REQUESTED" || latestAuditCommand?.status === "SENT"}
+          disabled={submitting || auditIsRunning}
         >
           Audit Missing Dates
         </button>
@@ -208,9 +219,14 @@ function AuditResultDisplay({ command }: { command: NonNullable<ProjectDetail["c
       {isRunning && (
         <div>
           <p className="muted" style={{ margin: 0 }}>
-            Audit command requested. Awaiting execution and result from QRA...
+            {command.status === "REQUESTED" && "Audit command queued. Waiting for QRA to pick it up..."}
+            {command.status === "SENT" && "QRA received the audit command. Waiting for acknowledgement or result..."}
+            {command.status === "ACKNOWLEDGED" && "QRA is executing the audit. Waiting for the persisted result..."}
           </p>
           <PixelProgressBar isRunning={isRunning} />
+          <p className="muted" style={{ margin: "8px 0 0", fontSize: "12px" }}>
+            This view refreshes automatically every 2 seconds while the command is active.
+          </p>
         </div>
       )}
 
@@ -263,4 +279,3 @@ function AuditResultDisplay({ command }: { command: NonNullable<ProjectDetail["c
     </div>
   );
 }
-
