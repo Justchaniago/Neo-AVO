@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDashboard } from "./data";
 import type { ProjectDetail } from "./model";
 import { Badge, Time } from "./primitives";
@@ -22,6 +22,65 @@ function formatMonthLabel(monthStr: string) {
   } catch {
     return monthStr;
   }
+}
+
+function PixelProgressBar({ isRunning }: { isRunning: boolean }) {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    if (!isRunning) {
+      setProgress(100);
+      return;
+    }
+    setProgress(0);
+    const startTime = Date.now();
+    const duration = 12000; // 12 seconds expected duration
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      // Exponential ease to 95% while waiting, complete when finished
+      const rawPct = Math.min(95, Math.floor((1 - Math.exp(-elapsed / 3500)) * 100));
+      setProgress(rawPct);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isRunning]);
+
+  const totalBlocks = 20;
+  const filledBlocks = Math.round((progress / 100) * totalBlocks);
+
+  return (
+    <div style={{ marginTop: "10px", width: "100%" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", fontWeight: "bold", fontFamily: "var(--mono)", marginBottom: "4px" }}>
+        <span>EXECUTING AUDIT...</span>
+        <span>{progress}%</span>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${totalBlocks}, 1fr)`,
+          gap: "3px",
+          padding: "4px",
+          background: "var(--ink)",
+          borderRadius: "4px",
+          border: "1px solid var(--ink)",
+        }}
+      >
+        {Array.from({ length: totalBlocks }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              height: "12px",
+              backgroundColor: i < filledBlocks ? "#7fe3e0" : "#222225",
+              borderRadius: "1px",
+              boxShadow: i < filledBlocks ? "0 0 6px rgba(127, 227, 224, 0.6)" : "none",
+              transition: "background-color 0.15s ease",
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
@@ -147,9 +206,12 @@ function AuditResultDisplay({ command }: { command: NonNullable<ProjectDetail["c
       </div>
 
       {isRunning && (
-        <p className="muted" style={{ margin: 0 }}>
-          Audit command requested. Awaiting execution and result from QRA...
-        </p>
+        <div>
+          <p className="muted" style={{ margin: 0 }}>
+            Audit command requested. Awaiting execution and result from QRA...
+          </p>
+          <PixelProgressBar isRunning={isRunning} />
+        </div>
       )}
 
       {command.status === "FAILED" && (
@@ -201,3 +263,4 @@ function AuditResultDisplay({ command }: { command: NonNullable<ProjectDetail["c
     </div>
   );
 }
+
