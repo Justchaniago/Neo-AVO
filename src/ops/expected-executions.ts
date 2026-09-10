@@ -25,6 +25,13 @@ export function expectedAtForDay(now: Date, timezone: string, schedule: string) 
   return candidate;
 }
 
+function matchesContractMetadata(data: unknown, metadata: unknown) {
+  const match = metadata && typeof metadata === "object" && "match" in metadata && (metadata as { match?: unknown }).match && typeof (metadata as { match?: unknown }).match === "object" ? (metadata as { match: Record<string, unknown> }).match : null;
+  if (!match) return true;
+  if (!data || typeof data !== "object") return false;
+  return Object.entries(match).every(([key, value]) => (data as Record<string, unknown>)[key] === value);
+}
+
 export async function evaluateExpectedExecutions(db: Db, now = new Date()) {
   const contracts = await db.select().from(schema.expectedExecutionContracts).where(eq(schema.expectedExecutionContracts.enabled, "true")).limit(200);
   let missed = 0;
@@ -36,8 +43,8 @@ export async function evaluateExpectedExecutions(db: Db, now = new Date()) {
       if (existing) continue;
       const [project] = await tx.select().from(schema.projects).where(eq(schema.projects.id, contract.projectId)).limit(1);
       if (!project) continue;
-      const recentSuccess = await tx.select({ id: schema.events.id }).from(schema.events).where(and(eq(schema.events.projectId, project.id), eq(schema.events.type, contract.expectedEventType), gte(schema.events.occurredAt, expectedAt), lte(schema.events.occurredAt, now))).limit(1);
-      if (recentSuccess.length) continue;
+      const recentSuccess = await tx.select({ id: schema.events.id, data: schema.events.data }).from(schema.events).where(and(eq(schema.events.projectId, project.id), eq(schema.events.type, contract.expectedEventType), gte(schema.events.occurredAt, expectedAt), lte(schema.events.occurredAt, now))).limit(20);
+      if (recentSuccess.some((event) => matchesContractMetadata(event.data, contract.metadata))) continue;
       const [occurrence] = await tx.insert(schema.expectedExecutionOccurrences).values({ contractId: contract.id, expectedAt, missedAt: now }).onConflictDoNothing({ target: [schema.expectedExecutionOccurrences.contractId, schema.expectedExecutionOccurrences.expectedAt] }).returning();
       if (!occurrence) continue;
       const dedupKey = `expected:${contract.id}:${expectedAt.toISOString()}`;
@@ -55,7 +62,7 @@ export async function recoverExpectedExecutionForEvent(db: Db, event: typeof sch
   let recovered = 0;
   for (const contract of contracts) {
     const [occurrence] = await db.select().from(schema.expectedExecutionOccurrences).where(and(eq(schema.expectedExecutionOccurrences.contractId, contract.id), eq(schema.expectedExecutionOccurrences.status, "MISSED"), isNull(schema.expectedExecutionOccurrences.completedAt))).orderBy(schema.expectedExecutionOccurrences.expectedAt).limit(1);
-    if (!occurrence || event.occurredAt < occurrence.expectedAt) continue;
+    if (!occurrence || event.occurredAt < occurrence.expectedAt || !matchesContractMetadata(event.data, contract.metadata)) continue;
     await db.update(schema.expectedExecutionOccurrences).set({ status: "RECOVERED", completedAt: event.occurredAt, sourceEventId: event.id }).where(eq(schema.expectedExecutionOccurrences.id, occurrence.id));
     const [project] = await db.select().from(schema.projects).where(eq(schema.projects.id, event.projectId)).limit(1);
     if (project) await updateProject(db, project.id, { businessHealth: "HEALTHY" });
