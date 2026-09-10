@@ -14,6 +14,7 @@ import {
   tone,
 } from "./model";
 import { QraAuditControl } from "./qra-audit-control";
+import { BriefingRegenerateControl } from "./briefing-regenerate-control";
 import {
   Availability,
   Badge,
@@ -342,6 +343,7 @@ export function ProjectScreen({ id }: { id: string }) {
           <div className="workspace-grid">
             <div className="span-full">
               <QraAuditControl detail={result.data} />
+              <BriefingRegenerateControl detail={result.data} />
             </div>
             <Panel
               title="Operational summary"

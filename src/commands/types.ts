@@ -16,6 +16,14 @@ export const commandArguments = {
   }).strict().superRefine((value, context) => {
     if (value.dates.some((date) => !date.startsWith(`${value.month}-`))) context.addIssue({ code: "custom", path: ["dates"], message: "dates_must_belong_to_month" });
   }),
+  "briefing.regenerate": z.object({
+    store: z.enum(["PMS", "TP6", "ALL"]),
+    type: z.enum(["MORNING", "CLOSING", "BOTH"]).optional(),
+    briefingType: z.enum(["MORNING", "CLOSING", "BOTH"]).optional(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  }).strict().refine((value) => value.type !== undefined || value.briefingType !== undefined, {
+    message: "Either type or briefingType must be specified",
+  }),
 } as const;
 
 export function validateCapability(capability: string, args: unknown, declared: string[]) {

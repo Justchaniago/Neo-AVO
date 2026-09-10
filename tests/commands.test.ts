@@ -45,4 +45,14 @@ describe("bounded commands", () => {
     expect(validateCapability("qra.resolve_missing_dates", { month: "2026-09", store: "PMS", dates: ["2026-09-03", "2026-09-03"] }, ["qra.resolve_missing_dates"]).ok).toBe(false);
     expect(validateCapability("qra.resolve_missing_dates", { month: "2026-09", store: "ALL", dates: ["2026-09-03"] }, ["qra.resolve_missing_dates"]).ok).toBe(false);
   });
+
+  it("validates briefing.regenerate schema and rejects invalid parameters", () => {
+    expect(validateCapability("briefing.regenerate", { store: "PMS", type: "CLOSING", date: "2026-09-10" }, ["briefing.regenerate"]).ok).toBe(true);
+    expect(validateCapability("briefing.regenerate", { store: "ALL", briefingType: "BOTH", date: "2026-09-10" }, ["briefing.regenerate"]).ok).toBe(true);
+    expect(validateCapability("briefing.regenerate", { store: "TP6", type: "MORNING", briefingType: "MORNING", date: "2026-09-10" }, ["briefing.regenerate"]).ok).toBe(true);
+    expect(validateCapability("briefing.regenerate", { store: "INVALID", type: "CLOSING", date: "2026-09-10" }, ["briefing.regenerate"]).ok).toBe(false);
+    expect(validateCapability("briefing.regenerate", { store: "PMS", date: "2026-09-10" }, ["briefing.regenerate"]).ok).toBe(false);
+    expect(validateCapability("briefing.regenerate", { store: "PMS", type: "CLOSING", date: "not-a-date" }, ["briefing.regenerate"]).ok).toBe(false);
+    expect(validateCapability("briefing.regenerate", { store: "PMS", type: "CLOSING", date: "2026-09-10", exec: "sh" }, ["briefing.regenerate"]).ok).toBe(false);
+  });
 });
