@@ -779,7 +779,7 @@ main {
 .scroll-viewport {
   position: relative;
 }
-.overview-scroll-viewport.is-scrollable {
+.overview-scroll-viewport {
   height: clamp(360px, 56vh, 650px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -788,13 +788,13 @@ main {
   scrollbar-color: var(--ink) transparent;
   padding-right: 7px;
 }
-.overview-scroll-viewport.is-scrollable::-webkit-scrollbar {
+.overview-scroll-viewport::-webkit-scrollbar {
   width: 8px;
 }
-.overview-scroll-viewport.is-scrollable::-webkit-scrollbar-track {
+.overview-scroll-viewport::-webkit-scrollbar-track {
   background: transparent;
 }
-.overview-scroll-viewport.is-scrollable::-webkit-scrollbar-thumb {
+.overview-scroll-viewport::-webkit-scrollbar-thumb {
   background: var(--ink);
   border: 2px solid transparent;
   border-radius: 8px;
