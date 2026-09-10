@@ -6,6 +6,7 @@ export const commandArguments = {
   "task.retry": z.object({ taskId: z.string().trim().min(1).max(200) }).strict(),
   "task.cancel": z.object({ taskId: z.string().trim().min(1).max(200) }).strict(),
   "worker.restart": z.object({ workerId: z.string().trim().min(1).max(200).optional() }).strict(),
+  "qra.audit_missing_dates": z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), store: z.enum(["ALL", "PMS", "TP6"]) }).strict(),
 } as const;
 
 export function validateCapability(capability: string, args: unknown, declared: string[]) {

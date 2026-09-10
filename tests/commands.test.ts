@@ -30,4 +30,12 @@ describe("bounded commands", () => {
     await expect(recordCommandResult({} as never, "cmd_1", "p", "prod", { status: "COMPLETED", result: { alreadyProcessed: true } })).resolves.toEqual({ status: "COMPLETED" });
     expect(mocks.insert).not.toHaveBeenCalledWith(expect.objectContaining({ capability: "deployment.restart" }));
   });
+
+  it("validates qra.audit_missing_dates schema and rejects invalid parameters", () => {
+    expect(validateCapability("qra.audit_missing_dates", { month: "2026-09", store: "ALL" }, ["qra.audit_missing_dates"]).ok).toBe(true);
+    expect(validateCapability("qra.audit_missing_dates", { month: "2026-09", store: "PMS" }, ["qra.audit_missing_dates"]).ok).toBe(true);
+    expect(validateCapability("qra.audit_missing_dates", { month: "invalid-month", store: "ALL" }, ["qra.audit_missing_dates"]).ok).toBe(false);
+    expect(validateCapability("qra.audit_missing_dates", { month: "2026-09", store: "INVALID" }, ["qra.audit_missing_dates"]).ok).toBe(false);
+    expect(validateCapability("qra.audit_missing_dates", { month: "2026-09", store: "ALL", extraSql: "DROP TABLE" }, ["qra.audit_missing_dates"]).ok).toBe(false);
+  });
 });

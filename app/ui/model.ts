@@ -48,9 +48,12 @@ export type ProjectDetail = {
   }[];
   commands: {
     id: string;
+    commandId?: string;
     capability: string;
+    arguments?: Record<string, unknown> | null;
     status: string;
     requestedAt: string;
+    result?: Record<string, unknown> | null;
     failureReason?: string | null;
     rejectionReason?: string | null;
   }[];

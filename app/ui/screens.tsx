@@ -13,6 +13,7 @@ import {
   meaningful,
   tone,
 } from "./model";
+import { QraAuditControl } from "./qra-audit-control";
 import {
   Availability,
   Badge,
@@ -332,6 +333,9 @@ export function ProjectScreen({ id }: { id: string }) {
       <div id="workspace-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === "Summary" && (
           <div className="workspace-grid">
+            <div className="span-full">
+              <QraAuditControl detail={result.data} />
+            </div>
             <Panel
               title="Operational summary"
               label="Machine truth"
