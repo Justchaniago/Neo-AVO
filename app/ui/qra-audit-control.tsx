@@ -32,8 +32,8 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasCapability = detail.project.capabilities.includes("qra.audit_missing_dates");
-  if (!hasCapability) return null;
+  const isQraProject = detail.project.slug === "qra-system" || detail.project.capabilities.includes("qra.audit_missing_dates");
+  if (!isQraProject) return null;
 
   const latestAuditCommand = detail.commands.find((c) => c.capability === "qra.audit_missing_dates");
 
