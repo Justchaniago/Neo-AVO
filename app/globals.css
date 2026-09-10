@@ -776,6 +776,51 @@ main {
   display: flex;
   flex-direction: column;
 }
+.activity-scroll-window {
+  position: relative;
+}
+.activity-scroll-window.is-scrollable {
+  max-height: 430px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink) transparent;
+  padding-right: 7px;
+}
+.activity-scroll-window.is-scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+.activity-scroll-window.is-scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}
+.activity-scroll-window.is-scrollable::-webkit-scrollbar-thumb {
+  background: var(--ink);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-clip: padding-box;
+}
+.activity-scroll-window.is-scrollable::after {
+  content: "";
+  position: sticky;
+  display: block;
+  pointer-events: none;
+  z-index: 2;
+  left: 0;
+  right: 7px;
+  bottom: 0;
+  height: 52px;
+  margin-top: -52px;
+  background: linear-gradient(to bottom, rgba(250, 248, 239, 0), var(--canvas) 88%);
+  transition: opacity 180ms ease;
+}
+.activity-scroll-window.is-at-bottom::after {
+  opacity: 0;
+}
+.activity-scroll-window:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
 .activity-row {
   width: 100%;
   display: grid;

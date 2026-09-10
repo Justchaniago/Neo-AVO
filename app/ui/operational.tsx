@@ -4,7 +4,7 @@ import { Icon } from "./icons";
 
 import Link from "next/link";
 import { AcknowledgeIncident } from "./existing-controls";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useDashboard, useRead } from "./data";
 import {
@@ -259,6 +259,9 @@ export function ActivityFeed({
   }, [compact, restored, storageKey, project, status]);
   const [displayed, setDisplayed] = useState(events);
   const [updated, setUpdated] = useState(false);
+  const compactListRef = useRef<HTMLDivElement>(null);
+  const [compactHasOverflow, setCompactHasOverflow] = useState(false);
+  const [compactAtBottom, setCompactAtBottom] = useState(true);
   const displayedIds = new Set(displayed.map(e => `${e.project.id}:${e.id}`));
   const incoming = events.filter(e => meaningful(e) && !displayedIds.has(`${e.project.id}:${e.id}`)).length;
   const latest = new Map(events.map(event => [`${event.project.id}:${event.id}`, event]));
@@ -273,6 +276,23 @@ export function ActivityFeed({
       (!status || (e.severity || e.status || "") === status) &&
       (!context || [e.store, e.domain].includes(context)),
   );
+  useEffect(() => {
+    if (!compact) return;
+    const element = compactListRef.current;
+    if (!element) return;
+    const updateScrollState = () => {
+      const hasOverflow = element.scrollHeight > element.clientHeight + 1;
+      setCompactHasOverflow(hasOverflow);
+      setCompactAtBottom(!hasOverflow || element.scrollTop + element.clientHeight >= element.scrollHeight - 2);
+    };
+    updateScrollState();
+    const observer = new ResizeObserver(updateScrollState);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [compact, filtered.length]);
+  const compactScrollClass = compact
+    ? `activity-scroll-window${compactHasOverflow ? " is-scrollable" : ""}${compactAtBottom ? " is-at-bottom" : ""}`
+    : "";
   return (
     <>
       {!compact && incoming > 0 && <div className="activity-update" role="status"><button onClick={() => { setDisplayed(events); setUpdated(true); }}>{incoming} new {incoming === 1 ? "event" : "events"} — show updates <Icon name="refresh" /></button><span>Your current view is preserved.</span></div>}
@@ -347,8 +367,18 @@ export function ActivityFeed({
             : "Normalized operational events will appear when reported. Heartbeats are reflected in availability."}
         </Empty>
       ) : (
-        <div className={`activity-list ${updated ? "just-updated" : ""}`} onAnimationEnd={() => setUpdated(false)}>
-          {filtered.slice(0, compact ? 6 : undefined).map((e) => (
+        <div
+          ref={compact ? compactListRef : undefined}
+          className={compactScrollClass}
+          tabIndex={compact && compactHasOverflow ? 0 : undefined}
+          aria-label={compact ? "Scrollable recent activity log" : undefined}
+          onScroll={compact ? (event) => {
+            const element = event.currentTarget;
+            setCompactAtBottom(element.scrollTop + element.clientHeight >= element.scrollHeight - 2);
+          } : undefined}
+        >
+          <div className={`activity-list ${updated ? "just-updated" : ""}`} onAnimationEnd={() => setUpdated(false)}>
+          {filtered.map((e) => (
             <button
               className="activity-row"
               key={`${e.project.id}:${e.id}`}
@@ -378,6 +408,7 @@ export function ActivityFeed({
               <span aria-hidden="true"><Icon name="arrow" /></span>
             </button>
           ))}
+          </div>
         </div>
       )}
       {selected && (
