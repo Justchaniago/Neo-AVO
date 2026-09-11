@@ -41,6 +41,7 @@ import { MobileProjectDetail } from "./mobile/project-detail";
 import { MobileIncidentDetail } from "./mobile/incident-detail";
 import { MobileInfrastructure } from "./mobile/infrastructure";
 import { MobileIntelligence } from "./mobile/intelligence";
+import { ResourceLineChart } from "./resource-chart";
 
 function Refresh() {
   const { refresh, checkedAt, refreshing, online, stale } = useDashboard();
@@ -1339,18 +1340,59 @@ export function InfrastructureScreen() {
                 </button>
               ))}
             </div>
-            <p className="muted">
+            <p className="muted" style={{ marginBottom: "1rem" }}>
               {infra?.history?.length
                 ? `Loaded ${infra.history.length} bounded data points for time range ${range}. Source: ${
                     range === "7d" ? "5-minute aggregates" : range === "30d" ? "1-hour aggregates" : "raw 30s snapshots"
                   }.`
                 : "Loading resource history telemetry…"}
             </p>
-            {infra?.history && infra.history.length > 0 && (
-              <div style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
-                <p>Peak Load / CPU in range: {Math.max(...infra.history.map((h) => h.cpuPercent))}%</p>
-                <p>Mean Memory in range: {Math.round(infra.history.reduce((sum, h) => sum + h.memoryPercent, 0) / infra.history.length)}%</p>
+
+            {infra?.history && infra.history.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <ResourceLineChart
+                  title="SYSTEM LOAD"
+                  data={infra.history.map((h) => ({ observedAt: h.observedAt, value: h.cpuPercent }))}
+                  unit="%"
+                  color="#FF6B57"
+                  expectedIntervalMs={range === "30d" ? 3 * 3600 * 1000 : range === "7d" ? 15 * 60 * 1000 : 3 * 60 * 1000}
+                  vcpuCount={infra.host?.vcpuCount || 2}
+                  summaryMetrics={{
+                    current: infra.history[infra.history.length - 1].cpuPercent,
+                    mean: Math.round(infra.history.reduce((s, h) => s + h.cpuPercent, 0) / infra.history.length),
+                    peak: Math.max(...infra.history.map((h) => h.cpuPercent)),
+                  }}
+                />
+
+                <ResourceLineChart
+                  title="MEMORY UTILIZATION"
+                  data={infra.history.map((h) => ({ observedAt: h.observedAt, value: h.memoryPercent }))}
+                  unit="%"
+                  color="#8CD1FF"
+                  expectedIntervalMs={range === "30d" ? 3 * 3600 * 1000 : range === "7d" ? 15 * 60 * 1000 : 3 * 60 * 1000}
+                  summaryMetrics={{
+                    current: infra.history[infra.history.length - 1].memoryPercent,
+                    mean: Math.round(infra.history.reduce((s, h) => s + h.memoryPercent, 0) / infra.history.length),
+                    peak: Math.max(...infra.history.map((h) => h.memoryPercent)),
+                  }}
+                />
+
+                <ResourceLineChart
+                  title="DISK UTILIZATION"
+                  data={infra.history.map((h) => ({ observedAt: h.observedAt, value: h.diskPercent }))}
+                  unit="%"
+                  color="#C9F17C"
+                  expectedIntervalMs={range === "30d" ? 3 * 3600 * 1000 : range === "7d" ? 15 * 60 * 1000 : 3 * 60 * 1000}
+                  summaryMetrics={{
+                    current: infra.history[infra.history.length - 1].diskPercent,
+                    peak: Math.max(...infra.history.map((h) => h.diskPercent)),
+                  }}
+                />
               </div>
+            ) : (
+              <p className="muted" style={{ padding: "20px", textAlign: "center" }}>
+                No telemetry available for this range
+              </p>
             )}
           </Panel>
 

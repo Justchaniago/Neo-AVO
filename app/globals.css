@@ -1390,6 +1390,85 @@ main {
   text-overflow: ellipsis;
 }
 
+/* Resource Line Chart Styles */
+.resource-chart-card {
+  background: var(--cream);
+  border: 3px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+.resource-chart-card.empty-chart {
+  background: var(--canvas);
+}
+.resource-chart-header {
+  margin-bottom: 12px;
+}
+.resource-chart-title-block {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.resource-chart-title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink);
+}
+.resource-chart-summary {
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--ink);
+}
+.resource-chart-summary strong {
+  font-weight: 700;
+}
+.peak-load-avg {
+  color: #555;
+}
+
+.resource-chart-svg-container {
+  position: relative;
+  width: 100%;
+}
+.resource-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 10px;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--cream);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--mono);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 2px 2px 0 var(--secondary);
+  z-index: 10;
+}
+.tooltip-time {
+  font-size: 10px;
+  opacity: 0.8;
+  margin-bottom: 2px;
+}
+.tooltip-value strong {
+  color: var(--status-resolved, #C9F17C);
+}
+.tooltip-load-avg {
+  color: var(--status-active, #8CD1FF);
+}
+
 /* Selected assessment details */
 .selected-assessment-wrapper {
   display: flex;
