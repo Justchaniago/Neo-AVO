@@ -983,16 +983,10 @@ export function IntelligenceScreen() {
                         className={`assessment-card ${isSelected ? "selected" : ""}`}
                         onClick={() => setSelectedId(i.id)}
                       >
-                        <div className="assessment-card-row">
+                        <div className="assessment-card-header">
                           <div className="assessment-card-badges">
                             <Badge value={i.severity} />
                             <Badge value={statusVal} />
-                          </div>
-                          <div className="assessment-card-title" title={projName}>
-                            {projName}
-                          </div>
-                          <div className="assessment-card-desc" title={i.reason}>
-                            {i.reason}
                           </div>
                           <div className="assessment-card-meta">
                             <span className={`confidence-pill confidence-${confidenceVal.toLowerCase()}`}>
@@ -1002,6 +996,14 @@ export function IntelligenceScreen() {
                               <Time value={i.resolvedAt || i.lastSeenAt} />
                             </span>
                           </div>
+                        </div>
+                        <div className="assessment-card-body">
+                          <div className="assessment-card-title" title={projName}>
+                            {projName}
+                          </div>
+                          <p className="assessment-card-desc" title={i.reason}>
+                            {i.reason}
+                          </p>
                         </div>
                       </button>
                     );
