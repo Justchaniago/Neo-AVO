@@ -773,8 +773,8 @@ function SelectedAssessmentDetail({ id }: { id: string }) {
         <dl className="selected-spec-item">
           <dt>Incident</dt>
           <dd>
-            <Link href={`/incidents/${i.id}`}>
-              {i.type.replaceAll("_", " ")} <Icon name="arrow" />
+            <Link href={`/incidents/${i.id}`} className="inline-link-unit">
+              <span>{i.type.replaceAll("_", " ")}</span> <Icon name="arrow" />
             </Link>
           </dd>
         </dl>
@@ -983,15 +983,25 @@ export function IntelligenceScreen() {
                         className={`assessment-card ${isSelected ? "selected" : ""}`}
                         onClick={() => setSelectedId(i.id)}
                       >
-                        <div className="assessment-card-top">
-                          <Badge value={i.severity} />
-                          <Badge value={statusVal} />
-                        </div>
-                        <div className="assessment-card-project">{projName}</div>
-                        <p className="assessment-card-reason">{i.reason}</p>
-                        <div className="assessment-card-bottom">
-                          <span>Confidence: {confidenceVal}</span>
-                          <Time value={i.resolvedAt || i.lastSeenAt} />
+                        <div className="assessment-card-row">
+                          <div className="assessment-card-badges">
+                            <Badge value={i.severity} />
+                            <Badge value={statusVal} />
+                          </div>
+                          <div className="assessment-card-title" title={projName}>
+                            {projName}
+                          </div>
+                          <div className="assessment-card-desc" title={i.reason}>
+                            {i.reason}
+                          </div>
+                          <div className="assessment-card-meta">
+                            <span className={`confidence-pill confidence-${confidenceVal.toLowerCase()}`}>
+                              {confidenceVal}
+                            </span>
+                            <span className="assessment-card-time">
+                              <Time value={i.resolvedAt || i.lastSeenAt} />
+                            </span>
+                          </div>
                         </div>
                       </button>
                     );
