@@ -67,6 +67,32 @@ export async function manuallyResolveIncident(
 
   if (!resolved) return null;
 
+  const remainingOpen = await db
+    .select()
+    .from(schema.incidents)
+    .where(and(eq(schema.incidents.projectId, existing.projectId), ne(schema.incidents.state, "RESOLVED")));
+
+  if (remainingOpen.length === 0) {
+    const [project] = await db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, existing.projectId))
+      .limit(1);
+
+    if (project) {
+      const hasRecentSuccessAfterFailure = project.lastSuccessfulExecutionAt && project.lastFailureAt && project.lastSuccessfulExecutionAt > project.lastFailureAt;
+      const targetHealth = hasRecentSuccessAfterFailure ? "HEALTHY" : "AWAITING_VERIFICATION";
+      await db
+        .update(schema.projects)
+        .set({
+          ...(project.operationalHealth === "FAILING" || project.operationalHealth === "DEGRADED" ? { operationalHealth: targetHealth } : {}),
+          ...(project.businessHealth === "FAILING" || project.businessHealth === "DEGRADED" ? { businessHealth: targetHealth } : {}),
+          updatedAt: now,
+        })
+        .where(eq(schema.projects.id, project.id));
+    }
+  }
+
   const auditEventId = `audit-manual-resolve-${incidentId}-${now.getTime()}`;
   await db
     .insert(schema.events)

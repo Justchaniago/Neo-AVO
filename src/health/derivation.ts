@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 
 export const availabilityStates = ["ONLINE", "STALE", "OFFLINE", "UNKNOWN"] as const;
-export const operationalHealthStates = ["HEALTHY", "DEGRADED", "FAILING", "RECOVERING", "UNKNOWN"] as const;
-export const businessHealthStates = ["HEALTHY", "DEGRADED", "FAILING", "RECOVERING", "UNKNOWN"] as const;
+export const operationalHealthStates = ["HEALTHY", "DEGRADED", "FAILING", "RECOVERING", "AWAITING_VERIFICATION", "UNKNOWN"] as const;
+export const businessHealthStates = ["HEALTHY", "DEGRADED", "FAILING", "RECOVERING", "AWAITING_VERIFICATION", "UNKNOWN"] as const;
 
 export type Availability = (typeof availabilityStates)[number];
 export type OperationalHealth = (typeof operationalHealthStates)[number];
@@ -56,12 +56,18 @@ export function availabilityAt(project: HealthProject, now: Date): Availability 
 
 export function healthAt(project: HealthProject, now: Date): OperationalHealth {
   if (project.healthStrategy === "execution_based" && project.expectedNextExecutionAt && project.gracePeriodSeconds !== null && now.getTime() > project.expectedNextExecutionAt.getTime() + project.gracePeriodSeconds * 1000) return "DEGRADED";
+  if ((project.operationalHealth === "AWAITING_VERIFICATION" || project.operationalHealth === "RECOVERING") && project.expectedNextExecutionAt && project.gracePeriodSeconds !== null && now.getTime() > project.expectedNextExecutionAt.getTime() + project.gracePeriodSeconds * 1000) return "DEGRADED";
   return project.operationalHealth as OperationalHealth;
 }
 
 /** Business health is based on expected effects, never on HTTP/runtime reachability. */
 export function businessHealthAt(project: Pick<HealthProject, "businessHealth" | "lastSuccessfulExecutionAt" | "expectedNextExecutionAt" | "gracePeriodSeconds">, now: Date): BusinessHealth {
-  if (project.businessHealth && businessHealthStates.includes(project.businessHealth as BusinessHealth) && project.businessHealth !== "UNKNOWN") return project.businessHealth as BusinessHealth;
+  if (project.businessHealth && businessHealthStates.includes(project.businessHealth as BusinessHealth) && project.businessHealth !== "UNKNOWN") {
+    if ((project.businessHealth === "AWAITING_VERIFICATION" || project.businessHealth === "RECOVERING") && project.expectedNextExecutionAt && project.gracePeriodSeconds !== null && now.getTime() > project.expectedNextExecutionAt.getTime() + project.gracePeriodSeconds * 1000) {
+      return "DEGRADED";
+    }
+    return project.businessHealth as BusinessHealth;
+  }
   if (project.expectedNextExecutionAt && project.gracePeriodSeconds !== null && now.getTime() > project.expectedNextExecutionAt.getTime() + project.gracePeriodSeconds * 1000 && (!project.lastSuccessfulExecutionAt || project.lastSuccessfulExecutionAt < project.expectedNextExecutionAt)) return "DEGRADED";
   return "UNKNOWN";
 }
@@ -79,8 +85,8 @@ export function deriveHealthFromEvent(project: HealthProject, event: HealthEvent
   if (event.type === "dependency.degraded") return { ...base, operationalHealth: "DEGRADED", businessHealth: "DEGRADED", lastOperationalAt: eventTime };
   if (event.type === "dependency.recovered") return { ...base, operationalHealth: "RECOVERING", businessHealth: "RECOVERING", lastOperationalAt: eventTime };
   if (event.type === "incident.manually_resolved") {
-    const op = project.operationalHealth === "FAILING" || project.operationalHealth === "DEGRADED" ? "RECOVERING" : project.operationalHealth;
-    const biz = project.businessHealth === "FAILING" || project.businessHealth === "DEGRADED" ? "RECOVERING" : project.businessHealth;
+    const op = project.operationalHealth === "FAILING" || project.operationalHealth === "DEGRADED" ? "AWAITING_VERIFICATION" : project.operationalHealth;
+    const biz = project.businessHealth === "FAILING" || project.businessHealth === "DEGRADED" ? "AWAITING_VERIFICATION" : project.businessHealth;
     return { ...base, operationalHealth: op, businessHealth: biz, lastOperationalAt: eventTime };
   }
   if (event.type === "task.failed" || event.type === "agent.failed" || event.type === "deployment.failed") return { ...base, lastExecutionAt: eventTime, lastFailureAt: eventTime, lastErrorSignature: failureSignature(event.data), operationalHealth: "FAILING", businessHealth: "FAILING", lastOperationalAt: eventTime, availability: "ONLINE" };
@@ -94,7 +100,7 @@ export function deriveHealthFromEvent(project: HealthProject, event: HealthEvent
     if (event.type === "tele_auto.telegram.delivery_failed" || (event.type === "tele_auto.worker.recovery" && ["failed", "failure", "unsuccessful"].includes(status))) return { ...baseTeleAuto, lastFailureAt: eventTime, lastErrorSignature: failureSignature(event.data), operationalHealth: "DEGRADED" as const, businessHealth: "DEGRADED" as const };
     if (event.type === "tele_auto.worker.recovery" && ["recovered", "completed", "success", "successful"].includes(status)) return { ...baseTeleAuto, operationalHealth: "RECOVERING" as const, businessHealth: "RECOVERING" as const };
     if (event.type === "tele_auto.run.completed") return { ...baseTeleAuto, lastSuccessfulExecutionAt: eventTime, operationalHealth: "HEALTHY" as const, businessHealth: "HEALTHY" as const };
-    return { ...baseTeleAuto, operationalHealth: project.operationalHealth === "UNKNOWN" ? "HEALTHY" as const : project.operationalHealth as "HEALTHY" | "DEGRADED" | "FAILING" | "RECOVERING" | "UNKNOWN" };
+    return { ...baseTeleAuto, operationalHealth: project.operationalHealth === "UNKNOWN" ? "HEALTHY" as const : project.operationalHealth as OperationalHealth };
   }
   if (event.type.startsWith("task.") || event.type.startsWith("agent.") || event.type.startsWith("deployment.")) return { ...base, lastExecutionAt: eventTime, lastOperationalAt: eventTime, availability: "ONLINE" };
   return base;

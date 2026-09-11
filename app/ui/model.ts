@@ -130,9 +130,18 @@ export function tone(value: string): string {
   )
     return "coral";
   if (
-    ["INFO", "RUNNING", "PROCESSING", "REQUESTED", "SENT", "RECOVERING"].includes(
-      value.toUpperCase(),
-    )
+    [
+      "INFO",
+      "RUNNING",
+      "PROCESSING",
+      "REQUESTED",
+      "SENT",
+      "RECOVERING",
+      "AWAITING_VERIFICATION",
+      "AWAITING VERIFICATION",
+      "VERIFICATION_PENDING",
+      "VERIFICATION PENDING",
+    ].includes(value.toUpperCase())
   )
     return "cyan";
   return "neutral";
@@ -181,7 +190,7 @@ export function globalSignal(
 
   const hasUnresolvedIncident = incidents.some((i) => i.state !== "RESOLVED");
   const hasDegradedProject = projects.some(
-    (p) => p.availability === "STALE" || p.operationalHealth === "DEGRADED" || p.businessHealth === "DEGRADED" || p.operationalHealth === "RECOVERING" || p.businessHealth === "RECOVERING"
+    (p) => p.availability === "STALE" || p.operationalHealth === "DEGRADED" || p.businessHealth === "DEGRADED"
   );
   const infraFreshness = infra?.latestSnapshot?.observedAt
     ? getTelemetryFreshness(infra.latestSnapshot.observedAt)
@@ -191,6 +200,18 @@ export function globalSignal(
 
   if (hasUnresolvedIncident || hasDegradedProject || hasInfraDegraded)
     return { label: "SIGNALS DEGRADED", tone: "orange" };
+
+  const hasRecoveringProject = projects.some(
+    (p) => p.operationalHealth === "RECOVERING" || p.businessHealth === "RECOVERING"
+  );
+  if (hasRecoveringProject)
+    return { label: "RECOVERY IN PROGRESS", tone: "cyan" };
+
+  const hasAwaitingVerificationProject = projects.some(
+    (p) => p.operationalHealth === "AWAITING_VERIFICATION" || p.businessHealth === "AWAITING_VERIFICATION"
+  );
+  if (hasAwaitingVerificationProject)
+    return { label: "VERIFICATION PENDING", tone: "cyan" };
 
   if (!projects.length) return { label: "AWAITING TELEMETRY", tone: "neutral" };
 

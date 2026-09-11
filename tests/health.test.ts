@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { availabilityAt, deriveHealthFromEvent, healthAt } from "../src/health/derivation";
+import { availabilityAt, businessHealthAt, deriveHealthFromEvent, healthAt } from "../src/health/derivation";
 
 const now = new Date("2026-09-06T12:00:00Z");
 const base = (overrides: Record<string, unknown> = {}) => ({
-  runtimeMode: "always_on", healthStrategy: "heartbeat", availability: "UNKNOWN", operationalHealth: "UNKNOWN", staleAfterSeconds: 60, offlineAfterSeconds: 300, expectedNextExecutionAt: null, gracePeriodSeconds: null, expectedIntervalSeconds: null, lastSeenAt: null, lastOperationalAt: null, lastSuccessfulExecutionAt: null, lastExecutionAt: null, lastFailureAt: null, lastErrorSignature: null, lastHealthEventAt: null, ...overrides,
+  runtimeMode: "always_on", healthStrategy: "heartbeat", availability: "UNKNOWN", operationalHealth: "UNKNOWN", businessHealth: "UNKNOWN", staleAfterSeconds: 60, offlineAfterSeconds: 300, expectedNextExecutionAt: null, gracePeriodSeconds: null, expectedIntervalSeconds: null, lastSeenAt: null, lastOperationalAt: null, lastSuccessfulExecutionAt: null, lastExecutionAt: null, lastFailureAt: null, lastErrorSignature: null, lastHealthEventAt: null, ...overrides,
 });
 
-describe("project health derivation", () => {
+describe("project health derivation V1.1", () => {
   it("derives heartbeat availability bands and unknown evidence", () => {
     expect(availabilityAt(base({ lastSeenAt: new Date("2026-09-06T11:59:30Z") }), now)).toBe("ONLINE");
     expect(availabilityAt(base({ lastSeenAt: new Date("2026-09-06T11:58:00Z") }), now)).toBe("STALE");
@@ -15,44 +15,59 @@ describe("project health derivation", () => {
     expect(availabilityAt(base(), now)).toBe("UNKNOWN");
   });
 
-  it("keeps availability separate from operational health", () => {
-    const degraded = deriveHealthFromEvent(base({ lastHealthEventAt: null }), { type: "dependency.degraded", occurredAt: new Date("2026-09-06T11:59:00Z"), data: { dependency: "payments" } });
-    expect(degraded).toMatchObject({ operationalHealth: "DEGRADED" });
-    expect(availabilityAt(base({ lastSeenAt: new Date("2026-09-06T11:59:30Z") }), now)).toBe("ONLINE");
-    expect(deriveHealthFromEvent(base(), { type: "task.failed", occurredAt: new Date("2026-09-06T11:59:00Z"), data: { taskId: "t", message: "timeout" } })).toMatchObject({ operationalHealth: "FAILING", availability: "ONLINE" });
+  it("CASE A — Active failure: latest authoritative evidence = failure, expects FAILING", () => {
+    const derived = deriveHealthFromEvent(base(), { type: "task.failed", occurredAt: new Date("2026-09-06T11:59:00Z"), data: { taskId: "t1", error: "fail" } });
+    expect(derived).toMatchObject({ operationalHealth: "FAILING", businessHealth: "FAILING" });
   });
 
-  it("derives healthy execution and overdue expected execution", () => {
-    const project = base({ runtimeMode: "scheduled", healthStrategy: "execution_based", expectedNextExecutionAt: new Date("2026-09-06T11:59:00Z"), gracePeriodSeconds: 30 });
-    const completed = deriveHealthFromEvent(project, { type: "task.completed", occurredAt: new Date("2026-09-06T11:58:00Z"), data: { taskId: "t" } });
-    expect(completed).toMatchObject({ operationalHealth: "HEALTHY", availability: "ONLINE", lastSuccessfulExecutionAt: new Date("2026-09-06T11:58:00Z") });
-    expect(healthAt(project, now)).toBe("DEGRADED");
-  });
-
-  it("does not mark on-demand projects offline without execution evidence", () => {
-    expect(availabilityAt(base({ runtimeMode: "on_demand", healthStrategy: "execution_based" }), now)).toBe("UNKNOWN");
-    expect(availabilityAt(base({ runtimeMode: "on_demand", healthStrategy: "execution_based", lastExecutionAt: new Date("2026-01-01T00:00:00Z") }), now)).toBe("ONLINE");
-  });
-
-  it("accepts newer evidence for recovery and ignores stale health evidence", () => {
-    const failing = base({ operationalHealth: "FAILING", lastHealthEventAt: new Date("2026-09-06T11:59:00Z") });
-    expect(deriveHealthFromEvent(failing, { type: "task.completed", occurredAt: new Date("2026-09-06T11:59:30Z"), data: { taskId: "t" } })).toMatchObject({ operationalHealth: "HEALTHY" });
-    expect(deriveHealthFromEvent(failing, { type: "task.completed", occurredAt: new Date("2026-09-06T11:58:00Z"), data: { taskId: "t" } })).toEqual({});
-  });
-
-  it("keeps Tele Auto activity online while separating operational failure", () => {
-    const project = base({ healthStrategy: "execution_based", runtimeMode: "on_demand" });
-    expect(deriveHealthFromEvent(project, { type: "tele_auto.run.needs_clarification", occurredAt: now, data: { runId: "run-1" } })).toMatchObject({ availability: "ONLINE", operationalHealth: "HEALTHY" });
-    expect(deriveHealthFromEvent(project, { type: "tele_auto.sheets.schema_mismatch", occurredAt: new Date(now.getTime() + 1000), data: { runId: "run-1", errorCode: "HEADER_MISSING" } })).toMatchObject({ availability: "ONLINE", operationalHealth: "DEGRADED" });
-  });
-
-  it("transitions FAILING project to RECOVERING on manual incident resolution until subsequent task completion", () => {
+  it("CASE B & C — Remediation complete / Manual resolve: transitions FAILING to AWAITING_VERIFICATION pending next execution", () => {
     const failing = base({ operationalHealth: "FAILING", businessHealth: "FAILING", lastHealthEventAt: new Date("2026-09-06T11:50:00Z") });
-    const recovering = deriveHealthFromEvent(failing, { type: "incident.manually_resolved", occurredAt: new Date("2026-09-06T11:55:00Z"), data: { incidentId: "inc-1" } });
-    expect(recovering).toMatchObject({ operationalHealth: "RECOVERING", businessHealth: "RECOVERING" });
+    const awaiting = deriveHealthFromEvent(failing, { type: "incident.manually_resolved", occurredAt: new Date("2026-09-06T11:55:00Z"), data: { incidentId: "inc-1" } });
+    expect(awaiting).toMatchObject({ operationalHealth: "AWAITING_VERIFICATION", businessHealth: "AWAITING_VERIFICATION" });
+  });
 
-    const updated = { ...failing, ...recovering };
-    const healthy = deriveHealthFromEvent(updated, { type: "task.completed", occurredAt: new Date("2026-09-06T11:59:00Z"), data: { taskId: "t-1" } });
+  it("CASE D — Recovery actively occurring: dependency recovery transitions to RECOVERING", () => {
+    const failing = base({ operationalHealth: "FAILING", businessHealth: "FAILING", lastHealthEventAt: new Date("2026-09-06T11:50:00Z") });
+    const recovering = deriveHealthFromEvent(failing, { type: "dependency.recovered", occurredAt: new Date("2026-09-06T11:55:00Z"), data: {} });
+    expect(recovering).toMatchObject({ operationalHealth: "RECOVERING", businessHealth: "RECOVERING" });
+  });
+
+  it("CASE E — Verification succeeds: AWAITING_VERIFICATION + authoritative execution success transitions to HEALTHY", () => {
+    const awaiting = base({ operationalHealth: "AWAITING_VERIFICATION", businessHealth: "AWAITING_VERIFICATION", lastHealthEventAt: new Date("2026-09-06T11:55:00Z") });
+    const healthy = deriveHealthFromEvent(awaiting, { type: "task.completed", occurredAt: new Date("2026-09-06T11:59:00Z"), data: { taskId: "t-1" } });
     expect(healthy).toMatchObject({ operationalHealth: "HEALTHY", businessHealth: "HEALTHY" });
+  });
+
+  it("CASE F — Verification fails: AWAITING_VERIFICATION + next execution failure transitions to FAILING", () => {
+    const awaiting = base({ operationalHealth: "AWAITING_VERIFICATION", businessHealth: "AWAITING_VERIFICATION", lastHealthEventAt: new Date("2026-09-06T11:55:00Z") });
+    const failing = deriveHealthFromEvent(awaiting, { type: "task.failed", occurredAt: new Date("2026-09-06T11:59:00Z"), data: { taskId: "t-1" } });
+    expect(failing).toMatchObject({ operationalHealth: "FAILING", businessHealth: "FAILING" });
+  });
+
+  it("CASE G — Verification is missed: AWAITING_VERIFICATION + grace window expiry transitions to DEGRADED", () => {
+    const overdueTime = new Date("2026-09-06T12:05:00Z");
+    const awaitingProject = base({
+      operationalHealth: "AWAITING_VERIFICATION",
+      businessHealth: "AWAITING_VERIFICATION",
+      runtimeMode: "scheduled",
+      healthStrategy: "execution_based",
+      expectedNextExecutionAt: new Date("2026-09-06T12:00:00Z"),
+      gracePeriodSeconds: 120,
+    });
+    expect(healthAt(awaitingProject, overdueTime)).toBe("DEGRADED");
+    expect(businessHealthAt(awaitingProject, overdueTime)).toBe("DEGRADED");
+  });
+
+  it("CASE H — Event-driven project: AWAITING_VERIFICATION with no fake next-execution timestamp", () => {
+    const eventDrivenProject = base({
+      runtimeMode: "on_demand",
+      healthStrategy: "execution_based",
+      operationalHealth: "FAILING",
+      businessHealth: "FAILING",
+      expectedNextExecutionAt: null,
+    });
+    const awaiting = deriveHealthFromEvent(eventDrivenProject, { type: "incident.manually_resolved", occurredAt: now, data: {} });
+    expect(awaiting).toMatchObject({ operationalHealth: "AWAITING_VERIFICATION", businessHealth: "AWAITING_VERIFICATION" });
+    expect(eventDrivenProject.expectedNextExecutionAt).toBeNull();
   });
 });

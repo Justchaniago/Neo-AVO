@@ -79,6 +79,16 @@ export function ProjectCard({ project: p }: { project: Project }) {
         <div>
           <span>LAST OPERATIONAL</span>: <Time value={p.lastOperationalAt} />
         </div>
+        {(p.operationalHealth === "AWAITING_VERIFICATION" || p.businessHealth === "AWAITING_VERIFICATION") && (
+          <div style={{ marginTop: "4px", fontSize: "0.75rem", color: "#006699" }}>
+            <span>NEXT VERIFICATION</span>:{" "}
+            {p.expectedNextExecutionAt ? (
+              <Time value={p.expectedNextExecutionAt} />
+            ) : (
+              "Waiting for next authoritative execution"
+            )}
+          </div>
+        )}
       </div>
     </article>
   );
