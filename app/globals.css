@@ -779,7 +779,8 @@ main {
 .scroll-viewport {
   position: relative;
 }
-.overview-scroll-viewport {
+.overview-scroll-viewport,
+.timeline-scroll-viewport {
   height: clamp(360px, 56vh, 650px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -788,19 +789,23 @@ main {
   scrollbar-color: var(--ink) transparent;
   padding-right: 7px;
 }
-.overview-scroll-viewport::-webkit-scrollbar {
+.overview-scroll-viewport::-webkit-scrollbar,
+.timeline-scroll-viewport::-webkit-scrollbar {
   width: 8px;
 }
-.overview-scroll-viewport::-webkit-scrollbar-track {
+.overview-scroll-viewport::-webkit-scrollbar-track,
+.timeline-scroll-viewport::-webkit-scrollbar-track {
   background: transparent;
 }
-.overview-scroll-viewport::-webkit-scrollbar-thumb {
+.overview-scroll-viewport::-webkit-scrollbar-thumb,
+.timeline-scroll-viewport::-webkit-scrollbar-thumb {
   background: var(--ink);
   border: 2px solid transparent;
   border-radius: 8px;
   background-clip: padding-box;
 }
-.overview-scroll-viewport.is-scrollable::after {
+.overview-scroll-viewport.is-scrollable::after,
+.timeline-scroll-viewport.is-scrollable::after {
   content: "";
   position: sticky;
   display: block;
@@ -814,10 +819,12 @@ main {
   background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96) 88%);
   transition: opacity 180ms ease;
 }
-.overview-scroll-viewport.is-at-bottom::after {
+.overview-scroll-viewport.is-at-bottom::after,
+.timeline-scroll-viewport.is-at-bottom::after {
   opacity: 0;
 }
-.overview-scroll-viewport:focus-visible {
+.overview-scroll-viewport:focus-visible,
+.timeline-scroll-viewport:focus-visible {
   outline: 3px solid var(--cyan);
   outline-offset: 3px;
 }

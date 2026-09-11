@@ -119,7 +119,11 @@ export function IncidentRows({
 }
 export function OperationalTimeline({ items }: { items: TimelineItem[] }) {
   if (!items.length) return <Empty title="No timeline evidence">No normalized operational records are available yet.</Empty>;
-  return <ol className="timeline">{items.map((item) => <li key={`${item.kind}:${item.sourceId}:${item.timestamp}`}><time><Time value={item.timestamp} /></time><strong>{item.kind.replaceAll("_", " ")}: {item.title}</strong><span>{item.summary}</span>{item.status && <Badge value={item.status} />}</li>)}</ol>;
+  return (
+    <ScrollViewport className="timeline-scroll-viewport" label="Scrollable operational timeline">
+      <ol className="timeline">{items.map((item) => <li key={`${item.kind}:${item.sourceId}:${item.timestamp}`}><time><Time value={item.timestamp} /></time><strong>{item.kind.replaceAll("_", " ")}: {item.title}</strong><span>{item.summary}</span>{item.status && <Badge value={item.status} />}</li>)}</ol>
+    </ScrollViewport>
+  );
 }
 export function AnalysisContent({ detail }: { detail: IncidentDetail }) {
   const a = detail.analysis;

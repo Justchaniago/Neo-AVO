@@ -59,3 +59,27 @@ describe("Ops Analyst", () => {
     expect(mocks.markAnalysisFailed).toHaveBeenCalledWith(expect.anything(), "analysis-1", "claim-1", expect.any(Error));
   });
 });
+
+describe("Resource Intelligence Pressure Evaluation", () => {
+  it("evaluates host resource metrics and returns SystemResourceStatus", async () => {
+    const { evaluateResourcePressure } = await import("../src/ops/resources");
+    const fakeDb = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([]),
+            }),
+          }),
+        }),
+      }),
+    };
+    const status = await evaluateResourcePressure(fakeDb as never);
+    expect(status).toHaveProperty("cpuPercent");
+    expect(status).toHaveProperty("memoryPercent");
+    expect(status).toHaveProperty("diskPercent");
+    expect(status).toHaveProperty("pressureState");
+    expect(status).toHaveProperty("isSustained");
+  });
+});
+

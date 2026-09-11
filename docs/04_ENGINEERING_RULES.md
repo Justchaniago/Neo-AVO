@@ -119,3 +119,21 @@ It is done when:
 - failure behavior is understood;
 - docs/contracts are updated if externally visible;
 - Agent B has no unresolved P0/P1 objection for milestone gates.
+
+# 13. Diagnostic Command Safety
+
+Repository searches and diagnostic commands must be strictly scoped to prevent host resource exhaustion:
+- Never recursively search filesystem root `/` by default (e.g. `grep -r ... /` or `rg ... /`).
+- Scope repository searches to explicit known project directories (e.g. `/opt/neo-avo`, `/opt/briefing-agent`, or local repo root).
+- Potentially expensive diagnostic commands must have explicit scope, bounded output (e.g. `head -n 25`), and a timeout when appropriate (e.g. `timeout 30s rg "pattern" /opt/neo-avo`).
+
+# 14. Host Identity Guardrail
+
+Before performing production diagnostics or production mutations, autonomous agents MUST establish target provenance:
+- Verify host identity (`hostname`, `uname -a`, `cat /etc/os-release`, `whoami`, `pwd`).
+- Minimum required proof: `HOSTNAME`, `OS`, `USER`, `WORKING_DIRECTORY`, `TARGET_PROJECT`, `ENVIRONMENT`.
+- Production conclusions, performance diagnoses, or remediation actions MAY NOT be derived from local development machine evidence.
+
+
+
+
