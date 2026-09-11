@@ -133,13 +133,31 @@ export function IncidentRows({
     </>
   );
 }
-function timelineKindTone(kind: string, status?: string | null): string {
-  if (kind === "INCIDENT") return "coral";
-  if (kind === "AI_ANALYSIS") return "purple";
-  if (kind === "CHANGE") return "orange";
-  if (kind === "TASK" || kind === "EXPECTED_EXECUTION" || kind === "RECOVERY" || kind === "RESOLUTION") return "lime";
-  if (status) return tone(status);
-  return "cyan";
+function getKindBg(kind: string): string {
+  if (kind === "INCIDENT") return "var(--cat-incident)";
+  if (kind === "CHANGE") return "var(--cat-change)";
+  if (kind === "AI_ANALYSIS") return "var(--cat-ai)";
+  return "var(--cat-event)";
+}
+
+function getStatusBg(status?: string | null): string {
+  if (!status) return "var(--cream)";
+  const s = status.toUpperCase();
+  if (["RESOLVED", "COMPLETED", "HEALTHY", "ONLINE", "SUCCEEDED"].includes(s)) return "var(--status-resolved)";
+  if (["FAILED", "FAILING", "OFFLINE", "CRITICAL", "HIGH"].includes(s)) return "var(--status-failed)";
+  if (["PENDING", "DEGRADED", "STALE", "WARNING", "ACKNOWLEDGED"].includes(s)) return "var(--status-pending)";
+  if (["DEPLOYED", "ACTIVE", "RUNNING", "PROCESSING"].includes(s)) return "var(--status-active)";
+  return "var(--cream)";
+}
+
+function getNodeBg(kind: string, status?: string | null): string {
+  if (status && ["RESOLVED", "COMPLETED", "HEALTHY", "SUCCEEDED"].includes(status.toUpperCase())) return "var(--status-resolved)";
+  if (kind === "INCIDENT") return "var(--cat-incident)";
+  if (kind === "CHANGE") return "var(--cat-change)";
+  if (kind === "AI_ANALYSIS") return "var(--cat-ai)";
+  if (status && ["FAILED", "FAILING", "CRITICAL"].includes(status.toUpperCase())) return "var(--status-failed)";
+  if (status && ["DEPLOYED", "ACTIVE", "RUNNING"].includes(status.toUpperCase())) return "var(--status-active)";
+  return "var(--cat-event)";
 }
 
 function timelineKindIcon(kind: string): IconName {
@@ -183,12 +201,12 @@ export function OperationalTimeline({ items }: { items: TimelineItem[] }) {
         <div className="timeline-filter-pills" role="tablist" aria-label="Filter timeline kind">
           {(
             [
-              ["ALL", "All"],
-              ["INCIDENT", "Incidents"],
-              ["TASK", "Tasks"],
-              ["EVENT", "Events"],
-              ["CHANGE", "Changes"],
-              ["AI_ANALYSIS", "AI Analysis"],
+              ["ALL", "ALL"],
+              ["INCIDENT", "INCIDENTS"],
+              ["TASK", "TASKS"],
+              ["EVENT", "EVENTS"],
+              ["CHANGE", "CHANGES"],
+              ["AI_ANALYSIS", "AI ANALYSIS"],
             ] as const
           ).map(([key, label]) => {
             const count = key === "ALL"
@@ -204,23 +222,34 @@ export function OperationalTimeline({ items }: { items: TimelineItem[] }) {
               <button
                 key={key}
                 type="button"
-                className={`timeline-pill ${filter === key ? "active" : ""}`}
+                className={`timeline-tab ${filter === key ? "active" : ""}`}
                 onClick={() => setFilter(key)}
               >
                 <span>{label}</span>
-                <span className="pill-count">{count}</span>
+                <span className="tab-count">{count}</span>
               </button>
             );
           })}
         </div>
         <div className="timeline-search-box">
           <input
+            className="timeline-search-input"
             type="text"
             placeholder="Search timeline records..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="timeline-legend">
+        <span><span className="dot" style={{ background: "var(--cat-incident)" }} />Incident</span>
+        <span><span className="dot" style={{ background: "var(--cat-change)" }} />Change</span>
+        <span><span className="dot" style={{ background: "var(--cat-ai)" }} />AI Analysis</span>
+        <span className="timeline-legend-divider">|</span>
+        <span><span className="dot" style={{ background: "var(--status-resolved)" }} />Resolved</span>
+        <span><span className="dot" style={{ background: "var(--status-failed)" }} />Failed</span>
+        <span><span className="dot" style={{ background: "var(--status-pending)" }} />Pending</span>
       </div>
 
       {!filtered.length ? (
@@ -232,46 +261,58 @@ export function OperationalTimeline({ items }: { items: TimelineItem[] }) {
               const itemId = `${item.kind}:${item.sourceId}:${item.timestamp}:${index}`;
               const isExpanded = Boolean(expanded[itemId]);
               const hasMetadata = item.metadataSafe && Object.keys(item.metadataSafe).length > 0;
-              const itemTone = timelineKindTone(item.kind, item.status);
+              const kindBg = getKindBg(item.kind);
+              const statusBg = getStatusBg(item.status);
+              const nodeBg = getNodeBg(item.kind, item.status);
               const itemIcon = timelineKindIcon(item.kind);
 
               return (
                 <li className="timeline-item-v2" key={itemId}>
-                  <div className={`timeline-node tone-${itemTone}`}>
+                  <div className="timeline-node" style={{ background: nodeBg }}>
                     <Icon name={itemIcon} />
                   </div>
                   <div className="timeline-card">
-                    <div className="timeline-card-top">
-                      <span className={`badge tone-${itemTone}`}>
-                        {item.kind.replaceAll("_", " ")}
-                      </span>
-                      {item.status && <Badge value={item.status} />}
-                      <span className="timeline-stamp">
+                    <div className="timeline-top-row">
+                      <div className="timeline-badges">
+                        <span className="badge-v2" style={{ background: kindBg }}>
+                          {item.kind.replaceAll("_", " ")}
+                        </span>
+                        {item.status && (
+                          <span className="badge-v2" style={{ background: statusBg }}>
+                            {item.status.replaceAll("_", " ")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="timeline-meta">
                         <Time value={item.timestamp} />
-                      </span>
+                      </div>
                     </div>
-                    <h4 className="timeline-title-text">{item.title}</h4>
-                    <p className="timeline-summary-text">{item.summary}</p>
-                    {hasMetadata && (
-                      <div className="timeline-card-actions">
+                    <h4 className="timeline-title">{item.title}</h4>
+                    <p className="timeline-desc">{item.summary}</p>
+                    <div className="timeline-card-actions">
+                      {hasMetadata ? (
                         <button
                           type="button"
-                          className="button-small timeline-inspect-btn"
+                          className="timeline-inspect-btn"
                           onClick={() => toggleExpand(itemId)}
                         >
                           {isExpanded ? "Hide payload" : "Inspect payload"} <Icon name="arrow" />
                         </button>
-                        {isExpanded && (
-                          <button
-                            type="button"
-                            className="button-small"
-                            onClick={() => navigator.clipboard?.writeText(JSON.stringify({ kind: item.kind, title: item.title, summary: item.summary, status: item.status, timestamp: item.timestamp, metadata: item.metadataSafe }, null, 2))}
-                          >
-                            Copy JSON
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      ) : (
+                        <span className="timeline-inspect-btn" style={{ cursor: "default", opacity: 0.6 }}>
+                          Inspect payload <Icon name="arrow" />
+                        </span>
+                      )}
+                      {isExpanded && hasMetadata && (
+                        <button
+                          type="button"
+                          className="button-small"
+                          onClick={() => navigator.clipboard?.writeText(JSON.stringify({ kind: item.kind, title: item.title, summary: item.summary, status: item.status, timestamp: item.timestamp, metadata: item.metadataSafe }, null, 2))}
+                        >
+                          Copy JSON
+                        </button>
+                      )}
+                    </div>
                     {isExpanded && hasMetadata && (
                       <div className="timeline-metadata-drawer">
                         <Facts rows={Object.entries(item.metadataSafe).map(([k, v]) => [k, String(v ?? "N/A")])} />
