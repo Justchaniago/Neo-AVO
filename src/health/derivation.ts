@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { evaluateBusinessProof } from "./contracts";
 
 export const availabilityStates = ["ONLINE", "STALE", "OFFLINE", "UNKNOWN"] as const;
 export const operationalHealthStates = ["HEALTHY", "DEGRADED", "FAILING", "RECOVERING", "AWAITING_VERIFICATION", "UNKNOWN"] as const;
@@ -9,6 +10,7 @@ export type OperationalHealth = (typeof operationalHealthStates)[number];
 export type BusinessHealth = (typeof businessHealthStates)[number];
 
 export type HealthProject = {
+  slug?: string;
   runtimeMode: string;
   healthStrategy: string;
   availability: string;
@@ -89,6 +91,45 @@ export function deriveHealthFromEvent(project: HealthProject, event: HealthEvent
     const biz = project.businessHealth === "FAILING" || project.businessHealth === "DEGRADED" ? "AWAITING_VERIFICATION" : project.businessHealth;
     return { ...base, operationalHealth: op, businessHealth: biz, lastOperationalAt: eventTime };
   }
+
+  // Evaluate project-specific business proof contract if project slug is present
+  if (project.slug) {
+    const proof = evaluateBusinessProof(project.slug, event);
+    if (proof.isValidSuccess) {
+      const isNewerThanFailure = !project.lastFailureAt || eventTime.getTime() >= project.lastFailureAt.getTime();
+      return {
+        ...base,
+        lastExecutionAt: eventTime,
+        lastSuccessfulExecutionAt: eventTime,
+        operationalHealth: "HEALTHY",
+        businessHealth: isNewerThanFailure ? "HEALTHY" : (project.businessHealth || "AWAITING_VERIFICATION"),
+        lastOperationalAt: eventTime,
+        availability: "ONLINE",
+      };
+    }
+    if (proof.isValidFailure) {
+      return {
+        ...base,
+        lastExecutionAt: eventTime,
+        lastFailureAt: eventTime,
+        lastErrorSignature: failureSignature(event.data),
+        operationalHealth: "FAILING",
+        businessHealth: "FAILING",
+        lastOperationalAt: eventTime,
+        availability: "ONLINE",
+      };
+    }
+    if (event.type === "task.completed" || event.type === "agent.completed" || event.type === "deployment.completed") {
+      return {
+        ...base,
+        lastExecutionAt: eventTime,
+        operationalHealth: "HEALTHY",
+        lastOperationalAt: eventTime,
+        availability: "ONLINE",
+      };
+    }
+  }
+
   if (event.type === "task.failed" || event.type === "agent.failed" || event.type === "deployment.failed") return { ...base, lastExecutionAt: eventTime, lastFailureAt: eventTime, lastErrorSignature: failureSignature(event.data), operationalHealth: "FAILING", businessHealth: "FAILING", lastOperationalAt: eventTime, availability: "ONLINE" };
   if (event.type === "task.retrying" || event.type === "agent.blocked") return { ...base, lastExecutionAt: eventTime, operationalHealth: "DEGRADED", businessHealth: "DEGRADED", lastOperationalAt: eventTime, availability: "ONLINE" };
   if (event.type === "task.completed" || event.type === "agent.completed" || event.type === "deployment.completed") return { ...base, lastExecutionAt: eventTime, lastSuccessfulExecutionAt: eventTime, expectedNextExecutionAt: project.expectedIntervalSeconds ? new Date(eventTime.getTime() + project.expectedIntervalSeconds * 1000) : project.expectedNextExecutionAt, operationalHealth: "HEALTHY", businessHealth: "HEALTHY", lastOperationalAt: eventTime, availability: "ONLINE" };

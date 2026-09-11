@@ -70,4 +70,32 @@ describe("project health derivation V1.1", () => {
     expect(awaiting).toMatchObject({ operationalHealth: "AWAITING_VERIFICATION", businessHealth: "AWAITING_VERIFICATION" });
     expect(eventDrivenProject.expectedNextExecutionAt).toBeNull();
   });
+
+  it("Business Contracts — Auto Email requires draftId for business HEALTHY proof", () => {
+    const p = base({ slug: "auto-email", businessHealth: "UNKNOWN" });
+    // Technical success without draftId does not prove business health
+    const techOnly = deriveHealthFromEvent(p, { type: "task.completed", occurredAt: now, data: { taskType: "export_sales_draft" } });
+    expect(techOnly.businessHealth).toBeUndefined();
+
+    // Business proof with draftId proves HEALTHY
+    const proof = deriveHealthFromEvent(p, { type: "task.completed", occurredAt: now, data: { taskType: "export_sales_draft", draftId: "r-123", store: "tp6" } });
+    expect(proof.businessHealth).toBe("HEALTHY");
+  });
+
+  it("Business Contracts — Briefing Agent requires sent_count > 0 for business HEALTHY proof", () => {
+    const p = base({ slug: "briefing-agent", businessHealth: "UNKNOWN" });
+    // Generation with 0 sent is a business failure
+    const genOnly = deriveHealthFromEvent(p, { type: "task.completed", occurredAt: now, data: { sent_count: 0 } });
+    expect(genOnly.businessHealth).toBe("FAILING");
+
+    // Delivery confirmed with sent_count > 0 proves HEALTHY
+    const proof = deriveHealthFromEvent(p, { type: "task.completed", occurredAt: now, data: { sent_count: 4 } });
+    expect(proof.businessHealth).toBe("HEALTHY");
+  });
+
+  it("Business Contracts — Tele Auto V2 requires WRITE_CONFIRMED execution phase", () => {
+    const p = base({ slug: "tele-auto", businessHealth: "UNKNOWN" });
+    const proof = deriveHealthFromEvent(p, { type: "tele_auto.run.completed", occurredAt: now, data: { executionPhase: "WRITE_CONFIRMED", store: "TP6" } });
+    expect(proof.businessHealth).toBe("HEALTHY");
+  });
 });
