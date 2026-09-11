@@ -1,6 +1,6 @@
 "use client";
 
-import { Icon } from "./icons";
+import { Icon, type IconName } from "./icons";
 
 import Link from "next/link";
 import { AcknowledgeIncident, ResolveIncident } from "./existing-controls";
@@ -133,12 +133,158 @@ export function IncidentRows({
     </>
   );
 }
+function timelineKindTone(kind: string, status?: string | null): string {
+  if (kind === "INCIDENT") return "coral";
+  if (kind === "AI_ANALYSIS") return "purple";
+  if (kind === "CHANGE") return "orange";
+  if (kind === "TASK" || kind === "EXPECTED_EXECUTION" || kind === "RECOVERY" || kind === "RESOLUTION") return "lime";
+  if (status) return tone(status);
+  return "cyan";
+}
+
+function timelineKindIcon(kind: string): IconName {
+  if (kind === "INCIDENT") return "attention";
+  if (kind === "AI_ANALYSIS") return "intelligence";
+  if (kind === "CHANGE") return "refresh";
+  if (kind === "TASK" || kind === "EXPECTED_EXECUTION") return "project";
+  if (kind === "RECOVERY" || kind === "RESOLUTION") return "state";
+  return "activity";
+}
+
 export function OperationalTimeline({ items }: { items: TimelineItem[] }) {
+  const [filter, setFilter] = useState<string>("ALL");
+  const [query, setQuery] = useState<string>("");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
   if (!items.length) return <Empty title="No timeline evidence">No normalized operational records are available yet.</Empty>;
+
+  const filtered = items.filter((item) => {
+    const matchesKind =
+      filter === "ALL" ||
+      (filter === "INCIDENT" && item.kind === "INCIDENT") ||
+      (filter === "TASK" && (item.kind === "TASK" || item.kind === "EXPECTED_EXECUTION")) ||
+      (filter === "EVENT" && item.kind === "EVENT") ||
+      (filter === "CHANGE" && item.kind === "CHANGE") ||
+      (filter === "AI_ANALYSIS" && item.kind === "AI_ANALYSIS");
+
+    const textSearch = `${item.kind} ${item.title} ${item.summary} ${item.status || ""} ${JSON.stringify(item.metadataSafe || {})}`.toLowerCase();
+    const matchesQuery = !query.trim() || textSearch.includes(query.toLowerCase().trim());
+
+    return matchesKind && matchesQuery;
+  });
+
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   return (
-    <ScrollViewport className="timeline-scroll-viewport" label="Scrollable operational timeline">
-      <ol className="timeline">{items.map((item) => <li key={`${item.kind}:${item.sourceId}:${item.timestamp}`}><time><Time value={item.timestamp} /></time><strong>{item.kind.replaceAll("_", " ")}: {item.title}</strong><span>{item.summary}</span>{item.status && <Badge value={item.status} />}</li>)}</ol>
-    </ScrollViewport>
+    <div className="timeline-container">
+      <div className="timeline-controls">
+        <div className="timeline-filter-pills" role="tablist" aria-label="Filter timeline kind">
+          {(
+            [
+              ["ALL", "All"],
+              ["INCIDENT", "Incidents"],
+              ["TASK", "Tasks"],
+              ["EVENT", "Events"],
+              ["CHANGE", "Changes"],
+              ["AI_ANALYSIS", "AI Analysis"],
+            ] as const
+          ).map(([key, label]) => {
+            const count = key === "ALL"
+              ? items.length
+              : items.filter((i) =>
+                  key === "INCIDENT" ? i.kind === "INCIDENT" :
+                  key === "TASK" ? (i.kind === "TASK" || i.kind === "EXPECTED_EXECUTION") :
+                  key === "AI_ANALYSIS" ? i.kind === "AI_ANALYSIS" :
+                  i.kind === key
+                ).length;
+            if (count === 0 && key !== "ALL") return null;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`timeline-pill ${filter === key ? "active" : ""}`}
+                onClick={() => setFilter(key)}
+              >
+                <span>{label}</span>
+                <span className="pill-count">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="timeline-search-box">
+          <input
+            type="text"
+            placeholder="Search timeline records..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {!filtered.length ? (
+        <Empty title="No matching timeline records">Try clearing your filters or search query.</Empty>
+      ) : (
+        <ScrollViewport className="timeline-scroll-viewport" label="Scrollable operational timeline">
+          <ol className="timeline-v2">
+            {filtered.map((item, index) => {
+              const itemId = `${item.kind}:${item.sourceId}:${item.timestamp}:${index}`;
+              const isExpanded = Boolean(expanded[itemId]);
+              const hasMetadata = item.metadataSafe && Object.keys(item.metadataSafe).length > 0;
+              const itemTone = timelineKindTone(item.kind, item.status);
+              const itemIcon = timelineKindIcon(item.kind);
+
+              return (
+                <li className="timeline-item-v2" key={itemId}>
+                  <div className={`timeline-node tone-${itemTone}`}>
+                    <Icon name={itemIcon} />
+                  </div>
+                  <div className="timeline-card">
+                    <div className="timeline-card-top">
+                      <span className={`badge tone-${itemTone}`}>
+                        {item.kind.replaceAll("_", " ")}
+                      </span>
+                      {item.status && <Badge value={item.status} />}
+                      <span className="timeline-stamp">
+                        <Time value={item.timestamp} />
+                      </span>
+                    </div>
+                    <h4 className="timeline-title-text">{item.title}</h4>
+                    <p className="timeline-summary-text">{item.summary}</p>
+                    {hasMetadata && (
+                      <div className="timeline-card-actions">
+                        <button
+                          type="button"
+                          className="button-small timeline-inspect-btn"
+                          onClick={() => toggleExpand(itemId)}
+                        >
+                          {isExpanded ? "Hide payload" : "Inspect payload"} <Icon name="arrow" />
+                        </button>
+                        {isExpanded && (
+                          <button
+                            type="button"
+                            className="button-small"
+                            onClick={() => navigator.clipboard?.writeText(JSON.stringify({ kind: item.kind, title: item.title, summary: item.summary, status: item.status, timestamp: item.timestamp, metadata: item.metadataSafe }, null, 2))}
+                          >
+                            Copy JSON
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {isExpanded && hasMetadata && (
+                      <div className="timeline-metadata-drawer">
+                        <Facts rows={Object.entries(item.metadataSafe).map(([k, v]) => [k, String(v ?? "N/A")])} />
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </ScrollViewport>
+      )}
+    </div>
   );
 }
 export function AnalysisContent({ detail }: { detail: IncidentDetail }) {
@@ -391,7 +537,7 @@ export function ActivityFeed({
             : "Normalized operational events will appear when reported. Heartbeats are reflected in availability."}
         </Empty>
       ) : (
-        <ScrollViewport className={compact ? "overview-scroll-viewport" : ""} label={compact ? "Scrollable recent activity log" : undefined}>
+        <ScrollViewport className={compact ? "overview-scroll-viewport" : "activity-scroll-viewport"} label="Scrollable recent activity log">
           <div className={`activity-list ${updated ? "just-updated" : ""}`} onAnimationEnd={() => setUpdated(false)}>
           {filtered.map((e) => (
             <button
