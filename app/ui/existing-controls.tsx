@@ -62,12 +62,23 @@ export function ResolveIncident({ id, state }: { id: string; state: string }) {
           body: JSON.stringify({ resolutionNote: note }),
         },
       );
-      if (!response.ok) throw new Error();
+      if (!response.ok) {
+        let errDetail = "";
+        try {
+          const errData = await response.json();
+          errDetail = errData.message || errData.error || "";
+        } catch {
+          // ignore non-json response
+        }
+        console.error("Manual incident resolution failed:", { id, status: response.status, errDetail });
+        throw new Error(errDetail || `Server returned ${response.status}`);
+      }
       setMessage("Incident manually resolved. Refreshing state.");
       setOpen(false);
       refresh();
-    } catch {
-      setMessage("Manual resolution could not be confirmed.");
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? `: ${err.message}` : "";
+      setMessage(`Manual resolution could not be confirmed${detail}.`);
     } finally {
       setPending(false);
     }

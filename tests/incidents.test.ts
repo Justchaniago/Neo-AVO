@@ -68,4 +68,236 @@ describe("deterministic incident engine", () => {
     expect(res).toMatchObject({ state: "RESOLVED" });
     expect(mockDb.insert).toHaveBeenCalled();
   });
+
+  it("Test A: OPEN failure, no recovery evidence -> incident RESOLVED, project AWAITING_VERIFICATION", async () => {
+    let updateProjectsSet: Record<string, unknown> = {};
+    const mockDb = {
+      select: vi.fn().mockReturnThis(),
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockImplementation((condition) => {
+        return {
+          limit: vi.fn().mockImplementation(() => {
+            // First call: existing incident
+            // Second call: project
+            return Promise.resolve([
+              {
+                id: "p1",
+                operationalHealth: "FAILING",
+                businessHealth: "FAILING",
+                lastFailureAt: new Date("2026-09-06T10:00:00Z"),
+                lastSuccessfulExecutionAt: null,
+              },
+            ]);
+          }),
+        };
+      }),
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockImplementation((val) => {
+        updateProjectsSet = val;
+        return {
+          where: vi.fn().mockReturnThis(),
+          returning: vi.fn().mockResolvedValue([{ id: "inc-1", state: "RESOLVED" }]),
+        };
+      }),
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockResolvedValue([]),
+    };
+
+    // Custom select implementation for full flow
+    let selectCount = 0;
+    mockDb.select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockImplementation(() => {
+          selectCount++;
+          if (selectCount === 1) {
+            // existing incident
+            return { limit: vi.fn().mockResolvedValue([{ id: "inc-1", projectId: "p1", environment: "production", state: "OPEN" }]) };
+          }
+          if (selectCount === 2) {
+            // remainingOpen incidents -> 0 remaining
+            return Promise.resolve([]);
+          }
+          if (selectCount === 3) {
+            // project
+            return {
+              limit: vi.fn().mockResolvedValue([{
+                id: "p1",
+                operationalHealth: "FAILING",
+                businessHealth: "FAILING",
+                lastFailureAt: new Date("2026-09-06T10:00:00Z"),
+                lastSuccessfulExecutionAt: null,
+              }]),
+            };
+          }
+          return { limit: vi.fn().mockResolvedValue([]) };
+        }),
+      }),
+    });
+
+    const res = await manuallyResolveIncident(mockDb as never, "inc-1", {}, now);
+    expect(res).toMatchObject({ state: "RESOLVED" });
+    expect(updateProjectsSet.operationalHealth).toBe("AWAITING_VERIFICATION");
+    expect(updateProjectsSet.businessHealth).toBe("AWAITING_VERIFICATION");
+  });
+
+  it("Test B: OPEN failure, newer authoritative success already exists -> project HEALTHY", async () => {
+    let updateProjectsSet: Record<string, unknown> = {};
+    let selectCount = 0;
+    const mockDb = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            selectCount++;
+            if (selectCount === 1) {
+              return { limit: vi.fn().mockResolvedValue([{ id: "inc-2", projectId: "p1", environment: "production", state: "OPEN" }]) };
+            }
+            if (selectCount === 2) {
+              return Promise.resolve([]);
+            }
+            if (selectCount === 3) {
+              return {
+                limit: vi.fn().mockResolvedValue([{
+                  id: "p1",
+                  operationalHealth: "FAILING",
+                  businessHealth: "FAILING",
+                  lastFailureAt: new Date("2026-09-06T10:00:00Z"),
+                  lastSuccessfulExecutionAt: new Date("2026-09-06T11:00:00Z"), // newer than failure
+                }]),
+              };
+            }
+            return { limit: vi.fn().mockResolvedValue([]) };
+          }),
+        }),
+      }),
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockImplementation((val) => {
+        updateProjectsSet = val;
+        return {
+          where: vi.fn().mockReturnThis(),
+          returning: vi.fn().mockResolvedValue([{ id: "inc-2", state: "RESOLVED" }]),
+        };
+      }),
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockResolvedValue([]),
+    };
+
+    const res = await manuallyResolveIncident(mockDb as never, "inc-2", {}, now);
+    expect(res).toMatchObject({ state: "RESOLVED" });
+    expect(updateProjectsSet.operationalHealth).toBe("HEALTHY");
+    expect(updateProjectsSet.businessHealth).toBe("HEALTHY");
+  });
+
+  it("Test C: multiple OPEN failures, resolve one -> remaining keeps project health unchanged", async () => {
+    let projectUpdated = false;
+    let selectCount = 0;
+    const mockDb = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            selectCount++;
+            if (selectCount === 1) {
+              return { limit: vi.fn().mockResolvedValue([{ id: "inc-1", projectId: "p1", environment: "production", state: "OPEN" }]) };
+            }
+            if (selectCount === 2) {
+              // another incident is still open!
+              return Promise.resolve([{ id: "inc-other", state: "OPEN" }]);
+            }
+            return { limit: vi.fn().mockResolvedValue([]) };
+          }),
+        }),
+      }),
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockImplementation((val) => {
+        if ("operationalHealth" in val || "businessHealth" in val) {
+          projectUpdated = true;
+        }
+        return {
+          where: vi.fn().mockReturnThis(),
+          returning: vi.fn().mockResolvedValue([{ id: "inc-1", state: "RESOLVED" }]),
+        };
+      }),
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockResolvedValue([]),
+    };
+
+    const res = await manuallyResolveIncident(mockDb as never, "inc-1", {}, now);
+    expect(res).toMatchObject({ state: "RESOLVED" });
+    expect(projectUpdated).toBe(false);
+  });
+
+  it("Test D & E: manual resolution with and without note", async () => {
+    let capturedReasonWithNote = "";
+    let selectCount = 0;
+    const mockDbWithNote = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            selectCount++;
+            if (selectCount === 1) return { limit: vi.fn().mockResolvedValue([{ id: "inc-1", projectId: "p1", state: "OPEN" }]) };
+            return Promise.resolve([{ id: "inc-other", state: "OPEN" }]);
+          }),
+        }),
+      }),
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockImplementation((val) => {
+        capturedReasonWithNote = val.resolutionReason;
+        return {
+          where: vi.fn().mockReturnThis(),
+          returning: vi.fn().mockResolvedValue([{ id: "inc-1", state: "RESOLVED", resolutionReason: val.resolutionReason }]),
+        };
+      }),
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockResolvedValue([]),
+    };
+
+    const resWithNote = await manuallyResolveIncident(mockDbWithNote as never, "inc-1", { resolutionNote: "Fix applied" }, now);
+    expect(resWithNote?.resolutionReason).toBe("Manual owner resolution: Fix applied");
+
+    let capturedReasonWithoutNote = "";
+    selectCount = 0;
+    const mockDbWithoutNote = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            selectCount++;
+            if (selectCount === 1) return { limit: vi.fn().mockResolvedValue([{ id: "inc-1", projectId: "p1", state: "OPEN" }]) };
+            return Promise.resolve([{ id: "inc-other", state: "OPEN" }]);
+          }),
+        }),
+      }),
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockImplementation((val) => {
+        capturedReasonWithoutNote = val.resolutionReason;
+        return {
+          where: vi.fn().mockReturnThis(),
+          returning: vi.fn().mockResolvedValue([{ id: "inc-1", state: "RESOLVED", resolutionReason: val.resolutionReason }]),
+        };
+      }),
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockResolvedValue([]),
+    };
+
+    const resWithoutNote = await manuallyResolveIncident(mockDbWithoutNote as never, "inc-1", {}, now);
+    expect(resWithoutNote?.resolutionReason).toBe("Manual owner resolution");
+  });
+
+  it("Test F: already resolved incident -> returns null deterministically", async () => {
+    const mockDb = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([]), // where state <> 'RESOLVED' matches 0 rows
+          }),
+        }),
+      }),
+    };
+
+    const res = await manuallyResolveIncident(mockDb as never, "already-resolved", {}, now);
+    expect(res).toBeNull();
+  });
 });
