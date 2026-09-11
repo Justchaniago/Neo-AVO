@@ -98,4 +98,52 @@ describe("project health derivation V1.1", () => {
     const proof = deriveHealthFromEvent(p, { type: "tele_auto.run.completed", occurredAt: now, data: { executionPhase: "WRITE_CONFIRMED", store: "TP6" } });
     expect(proof.businessHealth).toBe("HEALTHY");
   });
+
+  it("Chronological Invariant — Older success + newer failure + manual resolve MUST evaluate to AWAITING_VERIFICATION, not HEALTHY", () => {
+    const olderSuccess = new Date("2026-09-10T12:16:41.033Z");
+    const newerFailure = new Date("2026-09-10T22:30:35.246Z");
+    const resolveTime = new Date("2026-09-11T02:24:57.000Z");
+
+    const p = base({
+      slug: "qra-system",
+      businessHealth: "FAILING",
+      operationalHealth: "FAILING",
+      lastSuccessfulExecutionAt: olderSuccess,
+      lastFailureAt: newerFailure,
+      lastHealthEventAt: newerFailure,
+    });
+
+    const derived = deriveHealthFromEvent(p, {
+      type: "incident.manually_resolved",
+      occurredAt: resolveTime,
+      data: { incidentId: "inc-qra" },
+    });
+
+    expect(derived.businessHealth).toBe("AWAITING_VERIFICATION");
+    expect(derived.operationalHealth).toBe("AWAITING_VERIFICATION");
+  });
+
+  it("Chronological Invariant — Authoritative business success AFTER failure transitions to HEALTHY", () => {
+    const olderSuccess = new Date("2026-09-10T12:16:41.033Z");
+    const newerFailure = new Date("2026-09-10T22:30:35.246Z");
+    const postFailureSuccess = new Date("2026-09-11T12:00:00.000Z");
+
+    const p = base({
+      slug: "qra-system",
+      businessHealth: "AWAITING_VERIFICATION",
+      operationalHealth: "AWAITING_VERIFICATION",
+      lastSuccessfulExecutionAt: olderSuccess,
+      lastFailureAt: newerFailure,
+      lastHealthEventAt: newerFailure,
+    });
+
+    const derived = deriveHealthFromEvent(p, {
+      type: "qra.resolve_missing_dates.completed",
+      occurredAt: postFailureSuccess,
+      data: {},
+    });
+
+    expect(derived.businessHealth).toBe("HEALTHY");
+    expect(derived.operationalHealth).toBe("HEALTHY");
+  });
 });

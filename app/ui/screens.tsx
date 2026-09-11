@@ -342,7 +342,7 @@ export function ProjectScreen({ id }: { id: string }) {
             <Badge value={p.businessHealth} />
           </div>
           <span className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.75rem" }}>
-            LAST TELEMETRY: <Time value={p.lastSeenAt} />
+            LAST RUNTIME SIGNAL: <Time value={p.lastSeenAt} />
           </span>
         </div>
         <div className="tabs" role="tablist" aria-label="Project sections">
@@ -390,7 +390,7 @@ export function ProjectScreen({ id }: { id: string }) {
                       <Time key="o" value={p.lastOperationalAt} />,
                     ],
                     [
-                      "Last successful execution",
+                      "Last business proof",
                       <Time key="s" value={p.lastSuccessfulExecutionAt} />,
                     ],
                     [

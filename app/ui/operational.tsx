@@ -71,10 +71,10 @@ export function ProjectCard({ project: p }: { project: Project }) {
       </div>
       <div className="project-last" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
         <div>
-          <span>LAST TELEMETRY</span>: <Time value={p.lastSeenAt} />
+          <span>LAST RUNTIME SIGNAL</span>: <Time value={p.lastSeenAt} />
         </div>
         <div>
-          <span>LAST SUCCESS</span>: <Time value={p.lastSuccessfulExecutionAt} />
+          <span>LAST BUSINESS PROOF</span>: <Time value={p.lastSuccessfulExecutionAt} />
         </div>
         <div>
           <span>LAST OPERATIONAL</span>: <Time value={p.lastOperationalAt} />

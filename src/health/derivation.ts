@@ -87,9 +87,10 @@ export function deriveHealthFromEvent(project: HealthProject, event: HealthEvent
   if (event.type === "dependency.degraded") return { ...base, operationalHealth: "DEGRADED", businessHealth: "DEGRADED", lastOperationalAt: eventTime };
   if (event.type === "dependency.recovered") return { ...base, operationalHealth: "RECOVERING", businessHealth: "RECOVERING", lastOperationalAt: eventTime };
   if (event.type === "incident.manually_resolved") {
-    const op = project.operationalHealth === "FAILING" || project.operationalHealth === "DEGRADED" ? "AWAITING_VERIFICATION" : project.operationalHealth;
-    const biz = project.businessHealth === "FAILING" || project.businessHealth === "DEGRADED" ? "AWAITING_VERIFICATION" : project.businessHealth;
-    return { ...base, operationalHealth: op, businessHealth: biz, lastOperationalAt: eventTime };
+    const hasRecentSuccess = project.lastSuccessfulExecutionAt && (!project.lastFailureAt || project.lastSuccessfulExecutionAt.getTime() >= project.lastFailureAt.getTime());
+    const op = hasRecentSuccess ? (project.operationalHealth === "FAILING" || project.operationalHealth === "DEGRADED" ? "AWAITING_VERIFICATION" : project.operationalHealth) : "AWAITING_VERIFICATION";
+    const biz = hasRecentSuccess ? (project.businessHealth === "FAILING" || project.businessHealth === "DEGRADED" ? "AWAITING_VERIFICATION" : project.businessHealth) : "AWAITING_VERIFICATION";
+    return { ...base, operationalHealth: op as OperationalHealth, businessHealth: biz as BusinessHealth, lastOperationalAt: eventTime };
   }
 
   // Evaluate project-specific business proof contract if project slug is present

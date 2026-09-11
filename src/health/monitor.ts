@@ -26,23 +26,37 @@ export async function monitorProjectHealth(db: Db, now = new Date()) {
         .orderBy(desc(schema.events.occurredAt))
         .limit(100);
 
-      let latestSuccessAt: Date | null = null;
-      let latestFailureAt: Date | null = null;
+      let latestSuccessAt: Date | null = project.lastSuccessfulExecutionAt ? new Date(project.lastSuccessfulExecutionAt) : null;
+      let latestFailureAt: Date | null = project.lastFailureAt ? new Date(project.lastFailureAt) : null;
 
       for (const ev of events) {
         const proof = evaluateBusinessProof(project.slug, ev);
-        if (proof.isValidSuccess && !latestSuccessAt) {
-          latestSuccessAt = ev.occurredAt;
+        const evTime = new Date(ev.occurredAt);
+        if (proof.isValidSuccess) {
+          if (!latestSuccessAt || evTime.getTime() > latestSuccessAt.getTime()) {
+            latestSuccessAt = evTime;
+          }
         }
-        if (proof.isValidFailure && !latestFailureAt) {
-          latestFailureAt = ev.occurredAt;
+        if (proof.isValidFailure) {
+          if (!latestFailureAt || evTime.getTime() > latestFailureAt.getTime()) {
+            latestFailureAt = evTime;
+          }
         }
       }
 
-      const openIncidents = await tx
+      const allIncidents = await tx
         .select()
         .from(schema.incidents)
-        .where(and(eq(schema.incidents.projectId, project.id), ne(schema.incidents.state, "RESOLVED")));
+        .where(eq(schema.incidents.projectId, project.id));
+
+      const openIncidents = allIncidents.filter((i) => i.state !== "RESOLVED");
+
+      for (const inc of allIncidents) {
+        const incTime = new Date(inc.lastSeenAt || inc.firstSeenAt || inc.createdAt);
+        if (!latestFailureAt || incTime.getTime() > latestFailureAt.getTime()) {
+          latestFailureAt = incTime;
+        }
+      }
 
       if (latestFailureAt && (!latestSuccessAt || latestFailureAt.getTime() > latestSuccessAt.getTime())) {
         if (openIncidents.length > 0) {
@@ -60,9 +74,13 @@ export async function monitorProjectHealth(db: Db, now = new Date()) {
         nextBusiness = "AWAITING_VERIFICATION";
       }
 
-      if (openIncidents.length === 0 && (project.operationalHealth === "FAILING" || project.operationalHealth === "DEGRADED")) {
-        const hasRecentSuccess = latestSuccessAt && (!latestFailureAt || latestSuccessAt >= latestFailureAt);
-        nextHealth = hasRecentSuccess ? "HEALTHY" : "AWAITING_VERIFICATION";
+      if (openIncidents.length === 0) {
+        const hasRecentSuccess = latestSuccessAt && (!latestFailureAt || latestSuccessAt.getTime() >= latestFailureAt.getTime());
+        if (!hasRecentSuccess && (project.operationalHealth === "FAILING" || project.operationalHealth === "DEGRADED" || project.operationalHealth === "HEALTHY")) {
+          nextHealth = "AWAITING_VERIFICATION";
+        } else if (hasRecentSuccess && (project.operationalHealth === "FAILING" || project.operationalHealth === "DEGRADED" || project.operationalHealth === "AWAITING_VERIFICATION")) {
+          nextHealth = "HEALTHY";
+        }
       }
 
       const availabilityChanged = nextAvailability !== project.availability;

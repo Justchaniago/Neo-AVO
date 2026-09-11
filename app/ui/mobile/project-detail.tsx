@@ -85,9 +85,9 @@ export function MobileProjectDetail({
         <div className="execution-timing-block">
           <Facts
             rows={[
-              ["Last Telemetry", <Time key="lst" value={project.lastSeenAt} />],
+              ["Last Runtime Signal", <Time key="lst" value={project.lastSeenAt} />],
               ["Last Operational", <Time key="lo" value={project.lastOperationalAt} />],
-              ["Last Successful Execution", <Time key="lse" value={project.lastSuccessfulExecutionAt} />],
+              ["Last Business Proof", <Time key="lse" value={project.lastSuccessfulExecutionAt} />],
               ["Next Expected Execution", isEventDriven ? "Event-driven (No scheduled cron)" : project.expectedNextExecutionAt ? <Time key="nee" value={project.expectedNextExecutionAt} /> : "Not scheduled"],
               ["Runtime Mode", project.runtimeMode],
               ["Health Strategy", project.healthStrategy],
