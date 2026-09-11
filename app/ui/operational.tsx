@@ -55,14 +55,30 @@ export function ProjectCard({ project: p }: { project: Project }) {
         {p.runtimeMode.replaceAll("_", " ")} ·{" "}
         {p.healthStrategy.replaceAll("_", " ")}
       </p>
-      <div className="status-pair">
-        <Availability value={p.availability} />
-        <Badge value={p.operationalHealth} />
-        <Badge value={p.businessHealth} />
+      <div className="health-dimensions-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", margin: "14px 0" }}>
+        <div>
+          <span className="eyebrow" style={{ display: "block", fontSize: "0.65rem", marginBottom: "4px" }}>AVAILABILITY</span>
+          <Availability value={p.availability} />
+        </div>
+        <div>
+          <span className="eyebrow" style={{ display: "block", fontSize: "0.65rem", marginBottom: "4px" }}>OPERATIONAL</span>
+          <Badge value={p.operationalHealth} />
+        </div>
+        <div>
+          <span className="eyebrow" style={{ display: "block", fontSize: "0.65rem", marginBottom: "4px" }}>BUSINESS</span>
+          <Badge value={p.businessHealth} />
+        </div>
       </div>
-      <div className="project-last">
-        <span>LAST SEEN</span>
-        <Time value={p.lastSeenAt} />
+      <div className="project-last" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+        <div>
+          <span>LAST TELEMETRY</span>: <Time value={p.lastSeenAt} />
+        </div>
+        <div>
+          <span>LAST SUCCESS</span>: <Time value={p.lastSuccessfulExecutionAt} />
+        </div>
+        <div>
+          <span>LAST OPERATIONAL</span>: <Time value={p.lastOperationalAt} />
+        </div>
       </div>
     </article>
   );

@@ -45,4 +45,14 @@ describe("project health derivation", () => {
     expect(deriveHealthFromEvent(project, { type: "tele_auto.run.needs_clarification", occurredAt: now, data: { runId: "run-1" } })).toMatchObject({ availability: "ONLINE", operationalHealth: "HEALTHY" });
     expect(deriveHealthFromEvent(project, { type: "tele_auto.sheets.schema_mismatch", occurredAt: new Date(now.getTime() + 1000), data: { runId: "run-1", errorCode: "HEADER_MISSING" } })).toMatchObject({ availability: "ONLINE", operationalHealth: "DEGRADED" });
   });
+
+  it("transitions FAILING project to RECOVERING on manual incident resolution until subsequent task completion", () => {
+    const failing = base({ operationalHealth: "FAILING", businessHealth: "FAILING", lastHealthEventAt: new Date("2026-09-06T11:50:00Z") });
+    const recovering = deriveHealthFromEvent(failing, { type: "incident.manually_resolved", occurredAt: new Date("2026-09-06T11:55:00Z"), data: { incidentId: "inc-1" } });
+    expect(recovering).toMatchObject({ operationalHealth: "RECOVERING", businessHealth: "RECOVERING" });
+
+    const updated = { ...failing, ...recovering };
+    const healthy = deriveHealthFromEvent(updated, { type: "task.completed", occurredAt: new Date("2026-09-06T11:59:00Z"), data: { taskId: "t-1" } });
+    expect(healthy).toMatchObject({ operationalHealth: "HEALTHY", businessHealth: "HEALTHY" });
+  });
 });

@@ -130,7 +130,7 @@ export function tone(value: string): string {
   )
     return "coral";
   if (
-    ["INFO", "RUNNING", "PROCESSING", "REQUESTED", "SENT"].includes(
+    ["INFO", "RUNNING", "PROCESSING", "REQUESTED", "SENT", "RECOVERING"].includes(
       value.toUpperCase(),
     )
   )
@@ -181,7 +181,7 @@ export function globalSignal(
 
   const hasUnresolvedIncident = incidents.some((i) => i.state !== "RESOLVED");
   const hasDegradedProject = projects.some(
-    (p) => p.availability === "STALE" || p.operationalHealth === "DEGRADED" || p.businessHealth === "DEGRADED"
+    (p) => p.availability === "STALE" || p.operationalHealth === "DEGRADED" || p.businessHealth === "DEGRADED" || p.operationalHealth === "RECOVERING" || p.businessHealth === "RECOVERING"
   );
   const infraFreshness = infra?.latestSnapshot?.observedAt
     ? getTelemetryFreshness(infra.latestSnapshot.observedAt)

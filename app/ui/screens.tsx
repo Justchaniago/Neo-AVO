@@ -326,12 +326,21 @@ export function ProjectScreen({ id }: { id: string }) {
           description={`${p.runtimeMode.replaceAll("_", " ")} / ${p.healthStrategy.replaceAll("_", " ")}`}
           action={<Refresh />}
         />
-        <div className="workspace-state">
-          <Availability value={p.availability} />
-          <Badge value={p.operationalHealth} />
-          <Badge value={p.businessHealth} />
-          <span className="muted">
-            Last seen <Time value={p.lastSeenAt} />
+        <div className="workspace-state" style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", margin: "16px 0" }}>
+          <div>
+            <span className="eyebrow" style={{ display: "block", fontSize: "0.65rem", marginBottom: "2px" }}>AVAILABILITY</span>
+            <Availability value={p.availability} />
+          </div>
+          <div>
+            <span className="eyebrow" style={{ display: "block", fontSize: "0.65rem", marginBottom: "2px" }}>OPERATIONAL</span>
+            <Badge value={p.operationalHealth} />
+          </div>
+          <div>
+            <span className="eyebrow" style={{ display: "block", fontSize: "0.65rem", marginBottom: "2px" }}>BUSINESS</span>
+            <Badge value={p.businessHealth} />
+          </div>
+          <span className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.75rem" }}>
+            LAST TELEMETRY: <Time value={p.lastSeenAt} />
           </span>
         </div>
         <div className="tabs" role="tablist" aria-label="Project sections">
