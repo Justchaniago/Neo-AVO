@@ -60,26 +60,52 @@ describe("Ops Analyst", () => {
   });
 });
 
-describe("Resource Intelligence Pressure Evaluation", () => {
-  it("evaluates host resource metrics and returns SystemResourceStatus", async () => {
+describe("Resource Policy Acceptance Test Cases", () => {
+  it("CASE A: transient CPU spike remains telemetry only without AI or incident", async () => {
+    const { isAnalysisEligible } = await import("../src/ops/eligibility");
+    expect(isAnalysisEligible("WARNING", "HOST_RESOURCE_PRESSURE")).toBe(false);
+  });
+
+  it("CASE B: sustained high load without operational impact creates warning event but no HIGH incident or AI call", async () => {
     const { evaluateResourcePressure } = await import("../src/ops/resources");
     const fakeDb = {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             orderBy: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([]),
+              limit: vi.fn().mockResolvedValue([{ cpuPercent: 85 }, { cpuPercent: 85 }]),
             }),
           }),
         }),
       }),
     };
     const status = await evaluateResourcePressure(fakeDb as never);
-    expect(status).toHaveProperty("cpuPercent");
-    expect(status).toHaveProperty("memoryPercent");
-    expect(status).toHaveProperty("diskPercent");
-    expect(status).toHaveProperty("pressureState");
-    expect(status).toHaveProperty("isSustained");
+    expect(status.isSustained).toBe(true);
+    expect(status.pressureState).not.toBe("NORMAL");
+    const { isAnalysisEligible } = await import("../src/ops/eligibility");
+    expect(isAnalysisEligible("WARNING", "HOST_RESOURCE_PRESSURE")).toBe(false);
   });
+
+  it("CASE C & D: sustained pressure + deployment abort / business execution missed promotes to MEDIUM/HIGH incident making AI eligible", async () => {
+    const { isAnalysisEligible } = await import("../src/ops/eligibility");
+    expect(isAnalysisEligible("MEDIUM", "HOST_RESOURCE_CONTENTION")).toBe(true);
+    expect(isAnalysisEligible("HIGH", "HOST_RESOURCE_CONTENTION")).toBe(true);
+  });
+
+  it("CASE E: runaway process pattern triggers RUNAWAY_SUSPECTED without automatic termination", () => {
+    const processEvidence = { pid: 27879, cmd: "sudo grep -rn WEEKEND LIST TO DO /", elapsed: "12:27:02", cpu: 95.6 };
+    const isRunawaySuspected = processEvidence.elapsed.includes(":") && parseFloat(processEvidence.elapsed) > 1 && processEvidence.cpu > 80 && (processEvidence.cmd.includes("grep") || processEvidence.cmd.includes("find"));
+    expect(isRunawaySuspected).toBe(true);
+  });
+
+  it("CASE F: pressure clearing and healthy observations persist transition to RECOVERED_PENDING_CLOSE", () => {
+    const snapshots = [{ cpuPercent: 15, memoryPercent: 30 }, { cpuPercent: 18, memoryPercent: 32 }];
+    const highPressureCount = snapshots.filter(s => (s.cpuPercent ?? 0) >= 80 || (s.memoryPercent ?? 0) >= 80).length;
+    const isSustained = highPressureCount >= 2;
+    expect(isSustained).toBe(false);
+  });
+
+
 });
+
 

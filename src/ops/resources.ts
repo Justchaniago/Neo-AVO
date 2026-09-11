@@ -47,7 +47,8 @@ export async function evaluateResourcePressure(db: NodePgDatabase<typeof schema>
   const highPressureCount = recentSnapshots.filter(s => (s.cpuPercent ?? 0) >= 80 || (s.memoryPercent ?? 0) >= 80).length;
   const isSustained = instantState !== "NORMAL" && highPressureCount >= 2;
 
-  const pressureState = isSustained ? instantState : (instantState === "CRITICAL" ? "WARNING" : "NORMAL");
+  const pressureState = instantState === "NORMAL" ? "NORMAL" : (isSustained ? instantState : "WARNING");
+
 
   return {
     cpuPercent,
