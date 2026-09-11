@@ -167,7 +167,131 @@ export async function evaluateResourcePressure(db: NodePgDatabase<typeof schema>
   };
 }
 
-/** 30s host snapshot collection & 24h retention cleanup */
+/** Roll up raw 30s snapshots into 5m and 1h aggregates & clean expired data */
+export async function processResourceAggregates(db: NodePgDatabase<typeof schema>, now = new Date()) {
+  const hostId = "shared-prod-01";
+
+  // 1. Roll up raw snapshots into 5m buckets (last 2 hours)
+  const window5m = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+  const rawSnapshots = await db
+    .select()
+    .from(schema.resourceSnapshots)
+    .where(and(eq(schema.resourceSnapshots.scope, "neo-avo-host"), gte(schema.resourceSnapshots.observedAt, window5m)));
+
+  const buckets5m = new Map<number, typeof rawSnapshots>();
+  for (const s of rawSnapshots) {
+    const bucketTime = Math.floor(s.observedAt.getTime() / (5 * 60 * 1000)) * (5 * 60 * 1000);
+    const existing = buckets5m.get(bucketTime) || [];
+    existing.push(s);
+    buckets5m.set(bucketTime, existing);
+  }
+
+  for (const [timeMs, samples] of buckets5m.entries()) {
+    if (samples.length === 0) continue;
+    const bucketStart = new Date(timeMs);
+    const cpuVals = samples.map((s) => s.cpuPercent ?? 0);
+    const memVals = samples.map((s) => s.memoryPercent ?? 0);
+    const diskVals = samples.map((s) => s.diskPercent ?? 0);
+
+    const cpuMean = Math.round(cpuVals.reduce((a, b) => a + b, 0) / samples.length);
+    const cpuMax = Math.max(...cpuVals);
+    const memMean = Math.round(memVals.reduce((a, b) => a + b, 0) / samples.length);
+    const memMax = Math.max(...memVals);
+    const diskMean = Math.round(diskVals.reduce((a, b) => a + b, 0) / samples.length);
+    const diskMax = Math.max(...diskVals);
+    const peakPressure = samples.some((s) => (s.serviceState as { pressureState?: string })?.pressureState === "CRITICAL")
+      ? "CRITICAL"
+      : samples.some((s) => (s.serviceState as { pressureState?: string })?.pressureState === "WARNING")
+      ? "WARNING"
+      : "NORMAL";
+
+    await db
+      .insert(schema.resourceAggregates5m)
+      .values({
+        hostId,
+        bucketStart,
+        sampleCount: samples.length,
+        cpuPercentMean: cpuMean,
+        cpuPercentMax: cpuMax,
+        memoryPercentMean: memMean,
+        memoryPercentMax: memMax,
+        diskPercentMean: diskMean,
+        diskPercentMax: diskMax,
+        pressureStatePeak: peakPressure,
+      })
+      .onConflictDoNothing({ target: [schema.resourceAggregates5m.hostId, schema.resourceAggregates5m.bucketStart] });
+  }
+
+  // 2. Roll up 5m aggregates into 1h buckets (last 24 hours)
+  const window1h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const agg5m = await db
+    .select()
+    .from(schema.resourceAggregates5m)
+    .where(and(eq(schema.resourceAggregates5m.hostId, hostId), gte(schema.resourceAggregates5m.bucketStart, window1h)));
+
+  const buckets1h = new Map<number, typeof agg5m>();
+  for (const a of agg5m) {
+    const bucketTime = Math.floor(a.bucketStart.getTime() / (60 * 60 * 1000)) * (60 * 60 * 1000);
+    const existing = buckets1h.get(bucketTime) || [];
+    existing.push(a);
+    buckets1h.set(bucketTime, existing);
+  }
+
+  for (const [timeMs, samples] of buckets1h.entries()) {
+    if (samples.length === 0) continue;
+    const bucketStart = new Date(timeMs);
+    const cpuVals = samples.map((s) => s.cpuPercentMean);
+    const cpuMaxVals = samples.map((s) => s.cpuPercentMax);
+    const memVals = samples.map((s) => s.memoryPercentMean);
+    const memMaxVals = samples.map((s) => s.memoryPercentMax);
+    const diskVals = samples.map((s) => s.diskPercentMean);
+    const diskMaxVals = samples.map((s) => s.diskPercentMax);
+
+    const totalSamples = samples.reduce((sum, s) => sum + s.sampleCount, 0);
+    const cpuMean = Math.round(cpuVals.reduce((a, b) => a + b, 0) / samples.length);
+    const cpuMax = Math.max(...cpuMaxVals);
+    const memMean = Math.round(memVals.reduce((a, b) => a + b, 0) / samples.length);
+    const memMax = Math.max(...memMaxVals);
+    const diskMean = Math.round(diskVals.reduce((a, b) => a + b, 0) / samples.length);
+    const diskMax = Math.max(...diskMaxVals);
+    const peakPressure = samples.some((s) => s.pressureStatePeak === "CRITICAL")
+      ? "CRITICAL"
+      : samples.some((s) => s.pressureStatePeak === "WARNING")
+      ? "WARNING"
+      : "NORMAL";
+
+    await db
+      .insert(schema.resourceAggregates1h)
+      .values({
+        hostId,
+        bucketStart,
+        sampleCount: totalSamples,
+        cpuPercentMean: cpuMean,
+        cpuPercentMax: cpuMax,
+        memoryPercentMean: memMean,
+        memoryPercentMax: memMax,
+        diskPercentMean: diskMean,
+        diskPercentMax: diskMax,
+        pressureStatePeak: peakPressure,
+      })
+      .onConflictDoNothing({ target: [schema.resourceAggregates1h.hostId, schema.resourceAggregates1h.bucketStart] });
+  }
+
+  // 3. Multi-tier Retention Cleanup
+  const rawCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24h
+  const agg5mCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days
+  const agg1hCutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days
+
+  try {
+    await db.delete(schema.resourceSnapshots).where(lt(schema.resourceSnapshots.observedAt, rawCutoff));
+    await db.delete(schema.resourceAggregates5m).where(lt(schema.resourceAggregates5m.bucketStart, agg5mCutoff));
+    await db.delete(schema.resourceAggregates1h).where(lt(schema.resourceAggregates1h.bucketStart, agg1hCutoff));
+  } catch (error) {
+    log("error", "resources", "retention_cleanup_failed", { errorClass: error instanceof Error ? error.name : "unknown" });
+  }
+}
+
+/** 30s host snapshot collection & retention/rollup execution */
 export async function collectResourceSnapshot(db: NodePgDatabase<typeof schema>, now = new Date()) {
   const status = await evaluateResourcePressure(db);
 
@@ -198,15 +322,15 @@ export async function collectResourceSnapshot(db: NodePgDatabase<typeof schema>,
     });
   }
 
-  // Cleanup snapshots older than 24 hours to prevent unbounded table growth
-  const retentionCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  // Execute incremental rollup and retention cleanup
   try {
-    await db.delete(schema.resourceSnapshots).where(lt(schema.resourceSnapshots.observedAt, retentionCutoff));
-  } catch {
-    // Non-fatal retention cleanup
+    await processResourceAggregates(db, now);
+  } catch (error) {
+    log("error", "resources", "rollup_processing_failed", { errorClass: error instanceof Error ? error.name : "unknown" });
   }
 
   return status;
 }
+
 
 

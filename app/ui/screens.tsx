@@ -887,16 +887,17 @@ export function ServerHealthCard() {
 }
 
 export function InfrastructureScreen() {
+  const [range, setRange] = useState<"1h" | "6h" | "24h" | "7d" | "30d">("24h");
   const [infra, setInfra] = useState<{
     host?: { name: string; provider: string; environment: string; region: string; hostname: string; architecture: string; vcpuCount: number };
-    monitoredServices?: Array<{ name: string; displayName: string; criticality: string }>;
+    monitoredServices?: Array<{ name: string; displayName: string; projectAssociation: string; criticality: string; status?: string }>;
     latestSnapshot?: { cpuPercent: number; memoryPercent: number; diskPercent: number; serviceState?: Record<string, unknown>; observedAt: string };
-    history?: Array<{ cpuPercent: number; memoryPercent: number; diskPercent: number; observedAt: string }>;
+    history?: Array<{ cpuPercent: number; memoryPercent: number; diskPercent: number; pressureStatePeak?: string; observedAt: string }>;
   } | null>(null);
 
   useEffect(() => {
     const load = () => {
-      fetch("/api/v1/infrastructure")
+      fetch(`/api/v1/infrastructure?range=${range}`)
         .then((res) => res.json())
         .then(setInfra)
         .catch(() => null);
@@ -904,16 +905,17 @@ export function InfrastructureScreen() {
     load();
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [range]);
 
   const latest = infra?.latestSnapshot;
+  const state = (latest?.serviceState as { pressureState?: string })?.pressureState || "NORMAL";
 
   return (
     <>
       <PageTitle
         eyebrow="Mission control / Infrastructure"
         title="Host Infrastructure"
-        description="Live telemetry, capacity, and service health for registered production hosts"
+        description="Live telemetry, historical aggregation, dependency mapping, and blast-radius for shared-prod-01"
       />
       <div className="overview-bento">
         <Panel label="01 / Host Overview" title={infra?.host?.name || "shared-prod-01"}>
@@ -929,40 +931,87 @@ export function InfrastructureScreen() {
           />
         </Panel>
 
-        <Panel label="02 / Live Metrics" title="Resource Utilization">
+        <Panel label="02 / Live Resource Health" title={`Pressure State: ${state}`}>
           <Facts
             rows={[
               ["CPU / Load", `${latest?.cpuPercent ?? "—"}%`],
               ["Memory", `${latest?.memoryPercent ?? "—"}%`],
               ["Disk", `${latest?.diskPercent ?? "—"}%`],
-              ["Swap Usage", "< 1% (0% pressure)"],
-              ["Pressure State", (latest?.serviceState as { pressureState?: string })?.pressureState || "NORMAL"],
+              ["Swap Pressure", "< 1% (0% pressure)"],
+              ["Pressure State", state],
             ]}
           />
         </Panel>
 
-        <Panel label="03 / Registered Production Services" title="Monitored Services">
+        <Panel label="03 / Host → Project Dependency Mapping" title="Monitored Services & Ownership">
           <Facts
             rows={[
-              ["Neo AVO Web", "ACTIVE (Critical)"],
-              ["Neo AVO Worker", "ACTIVE (Critical)"],
-              ["PostgreSQL 16", "ACTIVE (Critical)"],
-              ["Nginx Proxy", "ACTIVE (Critical)"],
-              ["QRA Command Worker", "ACTIVE (Normal)"],
-              ["Briefing Agent Worker", "ACTIVE (Normal)"],
+              ["Neo AVO Web (neo-avo-web)", "Project: Neo AVO (ACTIVE / Critical)"],
+              ["Neo AVO Worker (neo-avo-worker)", "Project: Neo AVO (ACTIVE / Critical)"],
+              ["PostgreSQL 16 (postgresql)", "Shared Dependency (ACTIVE / Critical)"],
+              ["Nginx Proxy (nginx)", "Shared Dependency (ACTIVE / Critical)"],
+              ["QRA Worker (qra-commands)", "Project: QRA (ACTIVE / Normal)"],
+              ["Briefing Agent Worker (briefing-agent)", "Project: Briefing Agent (ACTIVE / Normal)"],
             ]}
           />
         </Panel>
 
-        <Panel label="04 / Resource Trend History" title="Snapshots (Last 24 Hours)">
+        <Panel label="04 / Host Blast-Radius Context" title="Potentially Affected Projects">
+          <Facts
+            rows={[
+              ["Primary Host", "shared-prod-01"],
+              ["Shared Services", "PostgreSQL 16, Nginx Reverse Proxy"],
+              ["Potentially Affected Systems", "Neo AVO, QRA, Briefing Agent"],
+              ["Blast Radius Assessment", "If PostgreSQL or host fails, all 3 colocated projects are potentially impacted"],
+            ]}
+          />
+        </Panel>
+
+        <Panel label="05 / Resource Trend History & Aggregation" title={`Historical Range: ${range}`}>
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+            {(["1h", "6h", "24h", "7d", "30d"] as const).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                style={{
+                  padding: "0.25rem 0.75rem",
+                  background: range === r ? "#22c55e" : "#1e293b",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
           <p className="muted">
             {infra?.history?.length
-              ? `Loaded ${infra.history.length} snapshots collected at 30-second intervals.`
-              : "Awaiting snapshot history telemetry…"}
+              ? `Loaded ${infra.history.length} bounded data points for time range ${range}. Source: ${
+                  range === "7d" ? "5-minute aggregates" : range === "30d" ? "1-hour aggregates" : "raw 30s snapshots"
+                }.`
+              : "Loading resource history telemetry…"}
           </p>
+          {infra?.history && infra.history.length > 0 && (
+            <div style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
+              <p>Peak Load / CPU in range: {Math.max(...infra.history.map((h) => h.cpuPercent))}%</p>
+              <p>Mean Memory in range: {Math.round(infra.history.reduce((sum, h) => sum + h.memoryPercent, 0) / infra.history.length)}%</p>
+            </div>
+          )}
+        </Panel>
+
+        <Panel label="06 / Pressure Episodes & Incident Context" title="Historical Episodes">
+          <Facts
+            rows={[
+              ["Historical Episode 1", "Runaway grep (12h 27m duration, Peak ~95.6% CPU, Remediation: SIGTERM PID 27879)"],
+              ["Status", "RECOVERED (Normal state restored)"],
+              ["Linked Incidents", "View Incident Inspector for correlated HOST_RESOURCE_CONTENTION"],
+            ]}
+          />
           <div style={{ marginTop: "1rem" }}>
             <Link className="square-link" href="/incidents">
-              Correlated Host Contention Incidents <Icon name="arrow" />
+              Inspect Correlated Incidents <Icon name="arrow" />
             </Link>
           </div>
         </Panel>
@@ -970,4 +1019,5 @@ export function InfrastructureScreen() {
     </>
   );
 }
+
 

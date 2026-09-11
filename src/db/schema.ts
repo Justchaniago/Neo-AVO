@@ -285,6 +285,49 @@ export const resourceSnapshots = pgTable("resource_snapshots", {
   observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const resourceAggregates5m = pgTable(
+  "resource_aggregates_5m",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    hostId: text("host_id").notNull().default("shared-prod-01"),
+    bucketStart: timestamp("bucket_start", { withTimezone: true }).notNull(),
+    sampleCount: integer("sample_count").notNull(),
+    cpuPercentMean: integer("cpu_percent_mean").notNull(),
+    cpuPercentMax: integer("cpu_percent_max").notNull(),
+    memoryPercentMean: integer("memory_percent_mean").notNull(),
+    memoryPercentMax: integer("memory_percent_max").notNull(),
+    diskPercentMean: integer("disk_percent_mean").notNull(),
+    diskPercentMax: integer("disk_percent_max").notNull(),
+    pressureStatePeak: text("pressure_state_peak").notNull().default("NORMAL"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    bucketIdx: uniqueIndex("resource_aggregates_5m_host_bucket_idx").on(table.hostId, table.bucketStart),
+  }),
+);
+
+export const resourceAggregates1h = pgTable(
+  "resource_aggregates_1h",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    hostId: text("host_id").notNull().default("shared-prod-01"),
+    bucketStart: timestamp("bucket_start", { withTimezone: true }).notNull(),
+    sampleCount: integer("sample_count").notNull(),
+    cpuPercentMean: integer("cpu_percent_mean").notNull(),
+    cpuPercentMax: integer("cpu_percent_max").notNull(),
+    memoryPercentMean: integer("memory_percent_mean").notNull(),
+    memoryPercentMax: integer("memory_percent_max").notNull(),
+    diskPercentMean: integer("disk_percent_mean").notNull(),
+    diskPercentMax: integer("disk_percent_max").notNull(),
+    pressureStatePeak: text("pressure_state_peak").notNull().default("NORMAL"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    bucketIdx: uniqueIndex("resource_aggregates_1h_host_bucket_idx").on(table.hostId, table.bucketStart),
+  }),
+);
+
+
 export const opsAnalysisInvocations = pgTable("ops_analysis_invocations", {
   id: uuid("id").defaultRandom().primaryKey(),
   analysisId: uuid("analysis_id").notNull().references(() => opsAnalyses.id, { onDelete: "cascade" }),
