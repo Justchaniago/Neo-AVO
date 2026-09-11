@@ -1875,7 +1875,8 @@ dialog::backdrop {
 /* NEO AVO MOBILE V1 RESPONSIVE ARCHITECTURE & DESIGN SYSTEM    */
 /* ============================================================ */
 
-.mobile-only {
+.mobile-only,
+.mobile-bottom-nav {
   display: none !important;
 }
 .desktop-only {
@@ -1883,7 +1884,8 @@ dialog::backdrop {
 }
 
 @media (max-width: 1000px) {
-  .mobile-only {
+  .mobile-only,
+  .mobile-bottom-nav {
     display: block !important;
   }
   .desktop-only {

@@ -28,7 +28,7 @@ export function MobileBottomNav({ onOpenMenu }: { onOpenMenu: () => void }) {
   ];
 
   return (
-    <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
+    <nav className="mobile-bottom-nav mobile-only" aria-label="Mobile Navigation">
       <div className="mobile-bottom-nav-inner">
         {navItems.map((item) => {
           if (item.isMenu) {
