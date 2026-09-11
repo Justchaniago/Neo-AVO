@@ -10,6 +10,7 @@ import {
   type IncidentDetail,
   type ProjectDetail,
   globalSignal,
+  getTelemetryFreshness,
   meaningful,
   tone,
 } from "./model";
@@ -35,6 +36,10 @@ import {
   OperationalTimeline,
   ScrollViewport,
 } from "./operational";
+
+import { MobileProjectDetail } from "./mobile/project-detail";
+import { MobileIncidentDetail } from "./mobile/incident-detail";
+import { MobileInfrastructure } from "./mobile/infrastructure";
 
 function Refresh() {
   const { refresh, checkedAt, refreshing, online, stale } = useDashboard();
@@ -133,7 +138,7 @@ export function OverviewScreen() {
           </div>
         </Panel>
         <Panel
-          className="attention-summary"
+          className={`attention-summary ${attentionTone === "coral" ? "has-critical" : ""}`}
           color={attentionTone}
           label="02 / Attention"
           title={
@@ -311,160 +316,166 @@ export function ProjectScreen({ id }: { id: string }) {
   const events = recentEvents.map((e) => ({ ...e, project: p }));
   return (
     <>
-      <Link className="breadcrumb" href="/projects">
-        <Icon name="back" /> All projects
-      </Link>
-      <PageTitle
-        eyebrow={`Project workspace / ${p.environment}`}
-        title={p.name}
-        description={`${p.runtimeMode.replaceAll("_", " ")} / ${p.healthStrategy.replaceAll("_", " ")}`}
-        action={<Refresh />}
-      />
-      <div className="workspace-state">
-        <Availability value={p.availability} />
-        <Badge value={p.operationalHealth} />
-        <Badge value={p.businessHealth} />
-        <span className="muted">
-          Last seen <Time value={p.lastSeenAt} />
-        </span>
-      </div>
-      <div className="tabs" role="tablist" aria-label="Project sections">
-        {["Summary", "Activity", "Incidents", "Context"].map((t) => (
-          <button
-            role="tab"
-            id={`tab-${t}`}
-            aria-controls="workspace-panel"
-            aria-selected={tab === t}
-            key={t}
-            onClick={() => setTab(t)}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-      <div id="workspace-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === "Summary" && (
-          <div className="workspace-grid">
-            <div className="span-full">
-              <QraAuditControl detail={result.data} />
-              <BriefingRegenerateControl detail={result.data} />
-            </div>
-            <Panel
-              title="Operational summary"
-              label="Machine truth"
-              color={tone(p.operationalHealth)}
+      <div className="desktop-only">
+        <Link className="breadcrumb" href="/projects">
+          <Icon name="back" /> All projects
+        </Link>
+        <PageTitle
+          eyebrow={`Project workspace / ${p.environment}`}
+          title={p.name}
+          description={`${p.runtimeMode.replaceAll("_", " ")} / ${p.healthStrategy.replaceAll("_", " ")}`}
+          action={<Refresh />}
+        />
+        <div className="workspace-state">
+          <Availability value={p.availability} />
+          <Badge value={p.operationalHealth} />
+          <Badge value={p.businessHealth} />
+          <span className="muted">
+            Last seen <Time value={p.lastSeenAt} />
+          </span>
+        </div>
+        <div className="tabs" role="tablist" aria-label="Project sections">
+          {["Summary", "Activity", "Incidents", "Context"].map((t) => (
+            <button
+              role="tab"
+              id={`tab-${t}`}
+              aria-controls="workspace-panel"
+              aria-selected={tab === t}
+              key={t}
+              onClick={() => setTab(t)}
             >
-              <Facts
-                rows={[
-                  [
-                    "Availability",
-                    <Availability key="a" value={p.availability} />,
-                  ],
-                  [
-                    "Operational health",
-                    <Badge key="h" value={p.operationalHealth} />,
-                  ],
-                  [
-                    "Business health",
-                    <Badge key="b" value={p.businessHealth} />,
-                  ],
-                  [
-                    "Last operational event",
-                    <Time key="o" value={p.lastOperationalAt} />,
-                  ],
-                  [
-                    "Last successful execution",
-                    <Time key="s" value={p.lastSuccessfulExecutionAt} />,
-                  ],
-                  [
-                    "Next expected execution",
-                    <Time key="e" value={p.expectedNextExecutionAt} />,
-                  ],
-                ]}
-              />
+              {t}
+            </button>
+          ))}
+        </div>
+        <div id="workspace-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+          {tab === "Summary" && (
+            <div className="workspace-grid">
+              <div className="span-full">
+                <QraAuditControl detail={result.data} />
+                <BriefingRegenerateControl detail={result.data} />
+              </div>
+              <Panel
+                title="Operational summary"
+                label="Machine truth"
+                color={tone(p.operationalHealth)}
+              >
+                <Facts
+                  rows={[
+                    [
+                      "Availability",
+                      <Availability key="a" value={p.availability} />,
+                    ],
+                    [
+                      "Operational health",
+                      <Badge key="h" value={p.operationalHealth} />,
+                    ],
+                    [
+                      "Business health",
+                      <Badge key="b" value={p.businessHealth} />,
+                    ],
+                    [
+                      "Last operational event",
+                      <Time key="o" value={p.lastOperationalAt} />,
+                    ],
+                    [
+                      "Last successful execution",
+                      <Time key="s" value={p.lastSuccessfulExecutionAt} />,
+                    ],
+                    [
+                      "Next expected execution",
+                      <Time key="e" value={p.expectedNextExecutionAt} />,
+                    ],
+                  ]}
+                />
+              </Panel>
+              <Panel title="Project attention" label="Incident evidence">
+                {incidents.error ? (
+                  <ErrorState retry={refresh} />
+                ) : !related ? (
+                  <Loading />
+                ) : related.filter((i) => i.state !== "RESOLVED").length ? (
+                  <IncidentRows
+                    incidents={related.filter((i) => i.state !== "RESOLVED")}
+                    limit={3}
+                  />
+                ) : (
+                  <Empty title="No active incidents">
+                    No active incidents in available project records.
+                  </Empty>
+                )}
+              </Panel>
+              <Panel title="Operations intelligence" label="Expected work and context">
+                <Facts rows={[
+                  ["Expected executions", result.data.expectedExecutions?.length ?? 0],
+                  ["Dependencies", result.data.dependencies?.length ?? 0],
+                  ["Recent changes", result.data.changes?.length ?? 0],
+                  ["Active incident records", result.data.incidents?.filter((incident) => incident.state !== "RESOLVED").length ?? 0],
+                ]} />
+                <p className="muted">Expected execution, dependency, change, recovery, and timeline evidence remain machine-derived. Repository and AI context are advisory.</p>
+              </Panel>
+              <Panel
+                className="span-full"
+                title="Recent activity"
+                label="Observed events"
+              >
+                <ActivityFeed compact events={events} />
+              </Panel>
+              <Panel className="span-full" title="Operational timeline" label="Normalized chronological projection">
+                <OperationalTimeline items={result.data.timeline?.items ?? []} />
+              </Panel>
+            </div>
+          )}
+          {tab === "Activity" && (
+            <Panel title="Project activity">
+              <ActivityFeed events={events} />
+              <p className="muted">
+                Up to 50 recent events. Context filters use reported values only.
+              </p>
             </Panel>
-            <Panel title="Project attention" label="Incident evidence">
+          )}
+          {tab === "Incidents" && (
+            <Panel title="Project incidents">
               {incidents.error ? (
                 <ErrorState retry={refresh} />
               ) : !related ? (
                 <Loading />
-              ) : related.filter((i) => i.state !== "RESOLVED").length ? (
-                <IncidentRows
-                  incidents={related.filter((i) => i.state !== "RESOLVED")}
-                  limit={3}
-                />
+              ) : related.length ? (
+                <IncidentRows incidents={related} />
               ) : (
-                <Empty title="No active incidents">
-                  No active incidents in available project records.
+                <Empty title="No incidents recorded">
+                  No incident records are available for this project.
                 </Empty>
               )}
             </Panel>
-            <Panel title="Operations intelligence" label="Expected work and context">
-              <Facts rows={[
-                ["Expected executions", result.data.expectedExecutions?.length ?? 0],
-                ["Dependencies", result.data.dependencies?.length ?? 0],
-                ["Recent changes", result.data.changes?.length ?? 0],
-                ["Active incident records", result.data.incidents?.filter((incident) => incident.state !== "RESOLVED").length ?? 0],
-              ]} />
-              <p className="muted">Expected execution, dependency, change, recovery, and timeline evidence remain machine-derived. Repository and AI context are advisory.</p>
-            </Panel>
+          )}
+          {tab === "Context" && (
             <Panel
-              className="span-full"
-              title="Recent activity"
-              label="Observed events"
+              title="Integration context"
+              label="Registry metadata / read-only"
             >
-              <ActivityFeed compact events={events} />
+              <Facts
+                rows={[
+                  ["Identity", p.slug],
+                  ["Environment", p.environment],
+                  ["Runtime", p.runtimeMode],
+                  ["Health strategy", p.healthStrategy],
+                  ["Criticality", p.criticality],
+                  [
+                    "Declared capabilities",
+                    p.capabilities.join(", ") || "None declared",
+                  ],
+                  ["Last seen", <Time key="l" value={p.lastSeenAt} />],
+                ]}
+              />
+              <ProjectControls detail={result.data} />
             </Panel>
-            <Panel className="span-full" title="Operational timeline" label="Normalized chronological projection">
-              <OperationalTimeline items={result.data.timeline?.items ?? []} />
-            </Panel>
-          </div>
-        )}
-        {tab === "Activity" && (
-          <Panel title="Project activity">
-            <ActivityFeed events={events} />
-            <p className="muted">
-              Up to 50 recent events. Context filters use reported values only.
-            </p>
-          </Panel>
-        )}
-        {tab === "Incidents" && (
-          <Panel title="Project incidents">
-            {incidents.error ? (
-              <ErrorState retry={refresh} />
-            ) : !related ? (
-              <Loading />
-            ) : related.length ? (
-              <IncidentRows incidents={related} />
-            ) : (
-              <Empty title="No incidents recorded">
-                No incident records are available for this project.
-              </Empty>
-            )}
-          </Panel>
-        )}
-        {tab === "Context" && (
-          <Panel
-            title="Integration context"
-            label="Registry metadata / read-only"
-          >
-            <Facts
-              rows={[
-                ["Identity", p.slug],
-                ["Environment", p.environment],
-                ["Runtime", p.runtimeMode],
-                ["Health strategy", p.healthStrategy],
-                ["Criticality", p.criticality],
-                [
-                  "Declared capabilities",
-                  p.capabilities.join(", ") || "None declared",
-                ],
-                ["Last seen", <Time key="l" value={p.lastSeenAt} />],
-              ]}
-            />
-            <ProjectControls detail={result.data} />
-          </Panel>
-        )}
+          )}
+        </div>
+      </div>
+
+      <div className="mobile-only">
+        <MobileProjectDetail id={id} data={result.data} refresh={refresh} />
       </div>
     </>
   );
@@ -567,18 +578,56 @@ export function IncidentsScreen() {
     </>
   );
 }
+function MobileIncidentWrapper({ id }: { id: string }) {
+  const { revision, refresh } = useDashboard();
+  const result = useRead<IncidentDetail>(
+    `/api/v1/dashboard/incidents/${encodeURIComponent(id)}`,
+    revision
+  );
+  if (result.error) return <ErrorState retry={refresh}>{result.error}</ErrorState>;
+  if (!result.data) return <Loading />;
+
+  const ack = async () => {
+    await fetch(`/api/v1/dashboard/incidents/${encodeURIComponent(id)}/ack`, {
+      method: "POST",
+    });
+  };
+  const resolve = async (note: string) => {
+    await fetch(`/api/v1/dashboard/incidents/${encodeURIComponent(id)}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    });
+  };
+
+  return (
+    <MobileIncidentDetail
+      id={id}
+      data={result.data}
+      refresh={refresh}
+      ack={ack}
+      resolve={resolve}
+    />
+  );
+}
+
 export function IncidentScreen({ id }: { id: string }) {
   return (
     <>
-      <Link className="breadcrumb" href="/incidents">
-        <Icon name="back" /> All incidents
-      </Link>
-      <PageTitle
-        eyebrow="Incident investigation"
-        title="Incident"
-        description="Evidence first. Interpretation second."
-      />
-      <IncidentContent id={id} />
+      <div className="desktop-only">
+        <Link className="breadcrumb" href="/incidents">
+          <Icon name="back" /> All incidents
+        </Link>
+        <PageTitle
+          eyebrow="Incident investigation"
+          title="Incident"
+          description="Evidence first. Interpretation second."
+        />
+        <IncidentContent id={id} />
+      </div>
+      <div className="mobile-only">
+        <MobileIncidentWrapper id={id} />
+      </div>
     </>
   );
 }
@@ -859,11 +908,12 @@ export function ServerHealthCard() {
   const mem = snapshot?.memoryPercent ?? "—";
   const disk = snapshot?.diskPercent ?? "—";
   const pressure = (snapshot?.serviceState as { pressureState?: string })?.pressureState ?? "NORMAL";
+  const freshness = snapshot?.observedAt ? getTelemetryFreshness(snapshot.observedAt) : "UNKNOWN";
 
   return (
     <Panel
       className="server-health-card"
-      color={pressure === "CRITICAL" ? "coral" : pressure === "WARNING" ? "orange" : "lime"}
+      color="white"
       label="03 / Host Infrastructure"
       title="shared-prod-01"
       action={<Link href="/infrastructure">View Infrastructure <Icon name="arrow" /></Link>}
@@ -871,8 +921,9 @@ export function ServerHealthCard() {
       <Facts
         rows={[
           ["Host", "shared-prod-01 (AWS Lightsail)"],
-          ["Pressure State", pressure],
-          ["CPU / Load", `${cpu}%`],
+          ["Pressure State", <Badge key="pressure" value={pressure} />],
+          ["Telemetry Freshness", <Badge key="freshness" value={freshness} />],
+          ["System Load (Capacity)", `${cpu}%`],
           ["Memory", `${mem}%`],
           ["Disk", `${disk}%`],
           ["Services Status", "6 / 6 Monitored Services Healthy"],
@@ -913,112 +964,118 @@ export function InfrastructureScreen() {
 
   return (
     <>
-      <PageTitle
-        eyebrow="Mission control / Infrastructure"
-        title="Host Infrastructure"
-        description="Live telemetry, historical aggregation, dependency mapping, and blast-radius for shared-prod-01"
-      />
-      <div className="overview-bento">
-        <Panel className="infra-half-panel" label="01 / Host Overview" title={infra?.host?.name || "shared-prod-01"}>
-          <Facts
-            rows={[
-              ["Provider", infra?.host?.provider || "AWS Lightsail"],
-              ["Region", infra?.host?.region || "ap-southeast-1"],
-              ["Environment", infra?.host?.environment || "production"],
-              ["Hostname", infra?.host?.hostname || "ip-172-26-11-88"],
-              ["Architecture", infra?.host?.architecture || "x86_64"],
-              ["vCPUs", String(infra?.host?.vcpuCount || 2)],
-            ]}
-          />
-        </Panel>
+      <div className="desktop-only">
+        <PageTitle
+          eyebrow="Mission control / Infrastructure"
+          title="Host Infrastructure"
+          description="Live telemetry, historical aggregation, dependency mapping, and blast-radius for shared-prod-01"
+        />
+        <div className="overview-bento">
+          <Panel className="infra-half-panel" label="01 / Host Overview" title={infra?.host?.name || "shared-prod-01"}>
+            <Facts
+              rows={[
+                ["Provider", infra?.host?.provider || "AWS Lightsail"],
+                ["Region", infra?.host?.region || "ap-southeast-1"],
+                ["Environment", infra?.host?.environment || "production"],
+                ["Hostname", infra?.host?.hostname || "ip-172-26-11-88"],
+                ["Architecture", infra?.host?.architecture || "x86_64"],
+                ["vCPUs", String(infra?.host?.vcpuCount || 2)],
+              ]}
+            />
+          </Panel>
 
-        <Panel className="infra-half-panel" label="02 / Live Resource Health" title={`Pressure State: ${state}`}>
-          <Facts
-            rows={[
-              ["CPU / Load", `${latest?.cpuPercent ?? "—"}%`],
-              ["Memory", `${latest?.memoryPercent ?? "—"}%`],
-              ["Disk", `${latest?.diskPercent ?? "—"}%`],
-              ["Swap Pressure", "< 1% (0% pressure)"],
-              ["Pressure State", state],
-            ]}
-          />
-        </Panel>
+          <Panel className="infra-half-panel" label="02 / Live Resource Health" title={`Pressure State: ${state}`}>
+            <Facts
+              rows={[
+                ["Pressure State", <Badge key="pressure" value={state} />],
+                ["Telemetry Freshness", <Badge key="freshness" value={latest?.observedAt ? getTelemetryFreshness(latest.observedAt) : "UNKNOWN"} />],
+                ["System Load (Capacity)", `${latest?.cpuPercent ?? "—"}%`],
+                ["Memory", `${latest?.memoryPercent ?? "—"}%`],
+                ["Disk", `${latest?.diskPercent ?? "—"}%`],
+                ["Swap Pressure", "< 1% (0% pressure)"],
+              ]}
+            />
+          </Panel>
 
-        <Panel className="infra-half-panel" label="03 / Host → Project Dependency Mapping" title="Monitored Services & Ownership">
-          <Facts
-            rows={[
-              ["Neo AVO Web (neo-avo-web)", "Project: Neo AVO (ACTIVE / Critical)"],
-              ["Neo AVO Worker (neo-avo-worker)", "Project: Neo AVO (ACTIVE / Critical)"],
-              ["PostgreSQL 16 (postgresql)", "Shared Dependency (ACTIVE / Critical)"],
-              ["Nginx Proxy (nginx)", "Shared Dependency (ACTIVE / Critical)"],
-              ["QRA Worker (qra-commands)", "Project: QRA (ACTIVE / Normal)"],
-              ["Briefing Agent Worker (briefing-agent)", "Project: Briefing Agent (ACTIVE / Normal)"],
-            ]}
-          />
-        </Panel>
+          <Panel className="infra-half-panel" label="03 / Host → Project Dependency Mapping" title="Monitored Services & Ownership">
+            <Facts
+              rows={[
+                ["Neo AVO Web (neo-avo-web)", "Project: Neo AVO (ACTIVE / Critical)"],
+                ["Neo AVO Worker (neo-avo-worker)", "Project: Neo AVO (ACTIVE / Critical)"],
+                ["PostgreSQL 16 (postgresql)", "Shared Dependency (ACTIVE / Critical)"],
+                ["Nginx Proxy (nginx)", "Shared Dependency (ACTIVE / Critical)"],
+                ["QRA Worker (qra-commands)", "Project: QRA (ACTIVE / Normal)"],
+                ["Briefing Agent Worker (briefing-agent)", "Project: Briefing Agent (ACTIVE / Normal)"],
+              ]}
+            />
+          </Panel>
 
-        <Panel className="infra-half-panel" label="04 / Host Blast-Radius Context" title="Potentially Affected Projects">
-          <Facts
-            rows={[
-              ["Primary Host", "shared-prod-01"],
-              ["Shared Services", "PostgreSQL 16, Nginx Reverse Proxy"],
-              ["Potentially Affected Systems", "Neo AVO, QRA, Briefing Agent"],
-              ["Blast Radius Assessment", "If PostgreSQL or host fails, all 3 colocated projects are potentially impacted"],
-            ]}
-          />
-        </Panel>
+          <Panel className="infra-half-panel" label="04 / Host Blast-Radius Context" title="Potentially Affected Projects">
+            <Facts
+              rows={[
+                ["Primary Host", "shared-prod-01"],
+                ["Shared Services", "PostgreSQL 16, Nginx Reverse Proxy"],
+                ["Potentially Affected Systems", "Neo AVO, QRA, Briefing Agent"],
+                ["Blast Radius Assessment", "If PostgreSQL or host fails, all 3 colocated projects are potentially impacted"],
+              ]}
+            />
+          </Panel>
 
-        <Panel className="infra-full-panel" label="05 / Resource Trend History & Aggregation" title={`Historical Range: ${range}`}>
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-            {(["1h", "6h", "24h", "7d", "30d"] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                style={{
-                  padding: "0.25rem 0.75rem",
-                  background: range === r ? "var(--lime)" : "var(--canvas)",
-                  color: "var(--ink)",
-                  border: "var(--line)",
-                  borderRadius: "4px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-          <p className="muted">
-            {infra?.history?.length
-              ? `Loaded ${infra.history.length} bounded data points for time range ${range}. Source: ${
-                  range === "7d" ? "5-minute aggregates" : range === "30d" ? "1-hour aggregates" : "raw 30s snapshots"
-                }.`
-              : "Loading resource history telemetry…"}
-          </p>
-          {infra?.history && infra.history.length > 0 && (
-            <div style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
-              <p>Peak Load / CPU in range: {Math.max(...infra.history.map((h) => h.cpuPercent))}%</p>
-              <p>Mean Memory in range: {Math.round(infra.history.reduce((sum, h) => sum + h.memoryPercent, 0) / infra.history.length)}%</p>
+          <Panel className="infra-full-panel" label="05 / Resource Trend History & Aggregation" title={`Historical Range: ${range}`}>
+            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+              {(["1h", "6h", "24h", "7d", "30d"] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRange(r)}
+                  style={{
+                    padding: "0.25rem 0.75rem",
+                    background: range === r ? "var(--lime)" : "var(--canvas)",
+                    color: "var(--ink)",
+                    border: "var(--line)",
+                    borderRadius: "4px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {r}
+                </button>
+              ))}
             </div>
-          )}
-        </Panel>
+            <p className="muted">
+              {infra?.history?.length
+                ? `Loaded ${infra.history.length} bounded data points for time range ${range}. Source: ${
+                    range === "7d" ? "5-minute aggregates" : range === "30d" ? "1-hour aggregates" : "raw 30s snapshots"
+                  }.`
+                : "Loading resource history telemetry…"}
+            </p>
+            {infra?.history && infra.history.length > 0 && (
+              <div style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
+                <p>Peak Load / CPU in range: {Math.max(...infra.history.map((h) => h.cpuPercent))}%</p>
+                <p>Mean Memory in range: {Math.round(infra.history.reduce((sum, h) => sum + h.memoryPercent, 0) / infra.history.length)}%</p>
+              </div>
+            )}
+          </Panel>
 
-        <Panel className="infra-full-panel" label="06 / Pressure Episodes & Incident Context" title="Historical Episodes">
-          <Facts
-            rows={[
-              ["Historical Episode 1", "Runaway grep (12h 27m duration, Peak ~95.6% CPU, Remediation: SIGTERM PID 27879)"],
-              ["Status", "RECOVERED (Normal state restored)"],
-              ["Linked Incidents", "View Incident Inspector for correlated HOST_RESOURCE_CONTENTION"],
-            ]}
-          />
-          <div style={{ marginTop: "1rem" }}>
-            <Link className="square-link" href="/incidents">
-              Inspect Correlated Incidents <Icon name="arrow" />
-            </Link>
-          </div>
-        </Panel>
+          <Panel className="infra-full-panel" label="06 / Pressure Episodes & Incident Context" title="Historical Episodes">
+            <Facts
+              rows={[
+                ["Historical Episode 1", "Runaway grep (12h 27m duration, Peak ~95.6% CPU, Remediation: SIGTERM PID 27879)"],
+                ["Status", "RECOVERED (Normal state restored)"],
+                ["Linked Incidents", "View Incident Inspector for correlated HOST_RESOURCE_CONTENTION"],
+              ]}
+            />
+            <div style={{ marginTop: "1rem" }}>
+              <Link className="square-link" href="/incidents">
+                Inspect Correlated Incidents <Icon name="arrow" />
+              </Link>
+            </div>
+          </Panel>
+        </div>
       </div>
 
+      <div className="mobile-only">
+        <MobileInfrastructure />
+      </div>
     </>
   );
 }

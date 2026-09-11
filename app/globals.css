@@ -1870,3 +1870,427 @@ dialog::backdrop {
 @media (prefers-reduced-motion: reduce) {
   .inspector.is-closing, .palette.is-closing, .just-updated { animation: none; }
 }
+
+/* ============================================================ */
+/* NEO AVO MOBILE V1 RESPONSIVE ARCHITECTURE & DESIGN SYSTEM    */
+/* ============================================================ */
+
+.mobile-only {
+  display: none !important;
+}
+.desktop-only {
+  display: block !important;
+}
+
+@media (max-width: 1000px) {
+  .mobile-only {
+    display: block !important;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+
+  main#main-content {
+    padding-bottom: calc(75px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: var(--white);
+    border-top: var(--line);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-bottom-nav-inner {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 60px;
+    padding: 0 4px;
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    min-height: 48px;
+    color: var(--secondary);
+    text-decoration: none;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 2px;
+    cursor: pointer;
+  }
+
+  .mobile-nav-item.active {
+    background: var(--lime);
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .mobile-nav-icon {
+    position: relative;
+    font-size: 18px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-nav-badge {
+    position: absolute;
+    top: -6px;
+    right: -8px;
+    background: var(--coral);
+    color: var(--white);
+    font-size: 9px;
+    font-weight: 900;
+    line-height: 1;
+    padding: 2px 5px;
+    border-radius: 10px;
+    border: 1px solid var(--ink);
+  }
+
+  .mobile-nav-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  button,
+  .button,
+  a,
+  input,
+  select {
+    min-height: 44px;
+  }
+
+  .overview-bento {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .overview-bento > .attention-summary.has-critical {
+    order: -1;
+  }
+
+  .mobile-incident-detail {
+    padding: 8px 0 20px 0;
+  }
+
+  .mobile-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
+    margin-bottom: 12px;
+  }
+
+  .mobile-incident-header {
+    border-bottom: var(--line);
+    padding-bottom: 14px;
+    margin-bottom: 16px;
+  }
+
+  .mobile-incident-pills {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .mobile-incident-title {
+    font-size: 24px;
+    font-weight: 900;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+    word-break: break-word;
+  }
+
+  .mobile-section {
+    margin-bottom: 20px;
+  }
+
+  .mobile-section-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--secondary);
+    margin-bottom: 8px;
+  }
+
+  .mobile-card {
+    background: var(--white);
+    border: var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .mobile-card.surface-purple {
+    background: var(--purple);
+  }
+
+  .mobile-card.surface-neutral {
+    background: var(--canvas);
+  }
+
+  .mobile-card-lead {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .mobile-checks-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .mobile-checks-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--muted);
+  }
+
+  .mobile-checks-list li:last-child {
+    border-bottom: none;
+  }
+
+  .mobile-action-bar {
+    position: sticky;
+    bottom: 70px;
+    z-index: 900;
+    background: var(--white);
+    border: var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 12px;
+    margin-top: 24px;
+  }
+
+  .mobile-action-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mobile-resolved-banner {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mobile-project-detail {
+    padding: 8px 0 20px 0;
+  }
+
+  .mobile-project-header {
+    border-bottom: var(--line);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+
+  .mobile-project-title {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .health-dimensions-card {
+    background: var(--white);
+  }
+
+  .mobile-facts-grid {
+    display: grid;
+    grid-template-columns: repeat(1, 1fr);
+    gap: 10px;
+    margin: 12px 0 16px 0;
+  }
+
+  .fact-label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--secondary);
+    margin-bottom: 4px;
+  }
+
+  .execution-timing-block {
+    border-top: 1px solid var(--muted);
+    padding-top: 12px;
+  }
+
+  .mobile-tab-bar {
+    display: flex;
+    border: var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--canvas);
+    margin-bottom: 16px;
+  }
+
+  .mobile-tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 10px 4px;
+    min-height: 40px;
+  }
+
+  .mobile-tab-btn.active {
+    background: var(--ink);
+    color: var(--lime);
+    font-weight: 700;
+  }
+
+  .mobile-infrastructure {
+    padding: 8px 0 20px 0;
+  }
+
+  .mobile-pills-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .mobile-range-selector {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    overflow-x: auto;
+  }
+
+  .mobile-range-btn {
+    flex: 1;
+    min-width: 44px;
+    min-height: 36px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-family: var(--mono);
+    background: var(--canvas);
+    border: var(--line);
+    border-radius: 4px;
+  }
+
+  .mobile-range-btn.active {
+    background: var(--lime);
+    color: var(--ink);
+    font-weight: 900;
+  }
+
+  .mobile-mini-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 100px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--ink);
+  }
+
+  .chart-bar {
+    flex: 1;
+    background: var(--lime);
+    border: 1px solid var(--ink);
+    border-radius: 2px 2px 0 0;
+  }
+
+  .chart-bar.bar-warning {
+    background: var(--orange);
+  }
+
+  .chart-bar.bar-danger {
+    background: var(--coral);
+  }
+
+  .chart-legend {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--secondary);
+    margin-top: 4px;
+  }
+
+  .confirmation-sheet-content {
+    padding: 8px 0;
+  }
+
+  .confirmation-meta {
+    margin-bottom: 16px;
+  }
+
+  .warning-text {
+    color: #d97706;
+    font-weight: 700;
+  }
+
+  .error-notice {
+    background: var(--coral);
+    color: var(--white);
+    padding: 10px 12px;
+    border: var(--line);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+
+  .confirmation-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .confirmation-actions button {
+    flex: 1;
+  }
+
+  .button-secondary {
+    background: var(--canvas);
+  }
+
+  .button-danger, .button-coral {
+    background: var(--coral);
+    color: var(--white);
+  }
+}

@@ -88,10 +88,16 @@ function useDashboardData() {
       for (const event of ["focus", "online", "offline"]) window.removeEventListener(event, resume);
     };
   }, [refresh]);
-  const projects = useRead<{ projects: Project[] }>(
-    "/api/v1/dashboard/overview",
-    revision,
-  );
+  const projects = useRead<{
+    projects: Project[];
+    hostSnapshot?: {
+      cpuPercent: number;
+      memoryPercent: number;
+      diskPercent: number;
+      serviceState?: Record<string, unknown>;
+      observedAt: string;
+    } | null;
+  }>("/api/v1/dashboard/overview", revision);
   const incidents = useRead<{ incidents: Incident[] }>(
     "/api/v1/dashboard/incidents",
     revision,

@@ -137,40 +137,74 @@ export function tone(value: string): string {
     return "cyan";
   return "neutral";
 }
+export function getTelemetryFreshness(
+  observedAtStr: string | null | undefined,
+  nowMs: number = Date.now()
+): "LIVE" | "STALE" | "UNKNOWN" {
+  if (!observedAtStr) return "UNKNOWN";
+  const observedMs = Date.parse(observedAtStr);
+  if (isNaN(observedMs)) return "UNKNOWN";
+  const ageSeconds = Math.max(0, (nowMs - observedMs) / 1000);
+  if (ageSeconds < 90) return "LIVE";
+  if (ageSeconds <= 180) return "STALE";
+  return "UNKNOWN";
+}
+
+export type InfraSummary = {
+  latestSnapshot?: { observedAt?: string; serviceState?: { pressureState?: string } } | null;
+  monitoredServices?: { status?: string }[];
+} | null;
+
 export function globalSignal(
   projects: Project[] | undefined,
   incidents: Incident[] | undefined,
   failed: boolean,
+  infra?: InfraSummary
 ) {
   if (failed || !projects || !incidents)
     return {
       label: failed ? "VISIBILITY LIMITED" : "CHECKING SYSTEMS",
       tone: "neutral",
     };
-  if (
-    incidents.some(
-      (i) =>
-        i.state !== "RESOLVED" && ["HIGH", "CRITICAL"].includes(i.severity),
-    ) ||
-    projects.some(
-      (p) => p.availability === "OFFLINE" || p.operationalHealth === "FAILING",
-    )
-  )
+
+  const hasCriticalIncident = incidents.some(
+    (i) => i.state !== "RESOLVED" && ["HIGH", "CRITICAL"].includes(i.severity)
+  );
+  const hasFailingProject = projects.some(
+    (p) => p.availability === "OFFLINE" || p.operationalHealth === "FAILING" || p.businessHealth === "FAILING"
+  );
+  const hasInfraCritical = infra?.latestSnapshot?.serviceState?.pressureState === "CRITICAL" ||
+    infra?.monitoredServices?.some((s) => s.status === "FAILED");
+
+  if (hasCriticalIncident || hasFailingProject || hasInfraCritical)
     return { label: "ATTENTION REQUIRED", tone: "coral" };
-  if (
-    incidents.some((i) => i.state !== "RESOLVED") ||
-    projects.some(
-      (p) => p.availability === "STALE" || p.operationalHealth === "DEGRADED",
-    )
-  )
+
+  const hasUnresolvedIncident = incidents.some((i) => i.state !== "RESOLVED");
+  const hasDegradedProject = projects.some(
+    (p) => p.availability === "STALE" || p.operationalHealth === "DEGRADED" || p.businessHealth === "DEGRADED"
+  );
+  const infraFreshness = infra?.latestSnapshot?.observedAt
+    ? getTelemetryFreshness(infra.latestSnapshot.observedAt)
+    : undefined;
+  const hasInfraDegraded = infra?.latestSnapshot?.serviceState?.pressureState === "WARNING" ||
+    infraFreshness === "STALE";
+
+  if (hasUnresolvedIncident || hasDegradedProject || hasInfraDegraded)
     return { label: "SIGNALS DEGRADED", tone: "orange" };
+
   if (!projects.length) return { label: "AWAITING TELEMETRY", tone: "neutral" };
-  if (
-    projects.every(
-      (p) => p.availability === "ONLINE" && p.operationalHealth === "HEALTHY",
-    )
-  )
+
+  const allProjectsNominal = projects.every(
+    (p) =>
+      p.availability === "ONLINE" &&
+      p.operationalHealth === "HEALTHY" &&
+      (!p.businessHealth || p.businessHealth === "HEALTHY" || p.businessHealth === "UNKNOWN")
+  );
+  const infraNominal = !infra || (infraFreshness === "LIVE" && (infra.latestSnapshot?.serviceState?.pressureState || "NORMAL") === "NORMAL");
+
+  if (allProjectsNominal && infraNominal)
     return { label: "SYSTEMS NOMINAL", tone: "lime" };
+
   return { label: "EVIDENCE INCOMPLETE", tone: "neutral" };
 }
 export function eventLabel(type: string) {

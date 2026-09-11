@@ -9,6 +9,8 @@ import { DashboardProvider, useDashboard } from "./data";
 import { globalSignal } from "./model";
 import { Overlay } from "./primitives";
 
+import { MobileBottomNav } from "./mobile/nav";
+
 const navigation: [string, string, IconName][] = [
   ["/", "Overview", "grid"],
   ["/projects", "Projects", "project"],
@@ -55,11 +57,12 @@ function ConsoleShell({ children }: { children: ReactNode }) {
   }, []);
   const [search, setSearch] = useState(false);
   const [query, setQuery] = useState("");
-  const { projects, incidents, health, online, stale, refresh } = useDashboard();
+  const { projects, incidents, health, online, stale, refresh, checkedAt } = useDashboard();
   const signal = globalSignal(
     projects.data?.projects,
     incidents.data?.incidents,
     stale,
+    projects.data?.hostSnapshot ? { latestSnapshot: projects.data.hostSnapshot } : null
   );
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -171,7 +174,15 @@ function ConsoleShell({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main id="main-content" tabIndex={-1}>
-          {stale && <div className="freshness-notice" role="status"><strong>{online ? "Updates delayed." : "You’re offline."}</strong> Last received data may be out of date. System health is not reassessed while disconnected. {online && <button onClick={refresh}>Retry update</button>}</div>}
+          {stale && (
+            <div className="freshness-notice" role="status">
+              <strong>{online ? "Updates delayed." : "CONNECTION LOST"}</strong>{" "}
+              {online
+                ? "Last received data may be out of date. System health is not reassessed while disconnected."
+                : `Showing last known state from ${checkedAt ? new Date(checkedAt).toLocaleTimeString() : "earlier"}.`}
+              {online && <button onClick={refresh}>Retry update</button>}
+            </div>
+          )}
           {children}
           <footer className="page-footer">
             <span>NEO AVO / AUTONOMOUS VIRTUAL OFFICE</span>
@@ -179,6 +190,8 @@ function ConsoleShell({ children }: { children: ReactNode }) {
           </footer>
         </main>
       </div>
+
+      <MobileBottomNav onOpenMenu={() => setMenu(true)} />
       {search && (
         <Overlay
           title="Search anything_"
