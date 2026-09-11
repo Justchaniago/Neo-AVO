@@ -168,14 +168,23 @@ export function MobileInfrastructure() {
         </div>
       </section>
 
-      {/* 05. Pressure Episodes */}
+      {/* 05. Pressure Episodes & Incident Context */}
       <section className="mobile-section">
-        <h2 className="mobile-section-title">05 / Pressure Episodes</h2>
+        <h2 className="mobile-section-title">05 / Historical Episodes</h2>
         <div className="mobile-card">
           <Facts
             rows={[
               ["Historical Episode 1", "Runaway grep (12h 27m duration, Peak ~95.6% CPU, Remediation: SIGTERM PID 27879)"],
-              ["Sustained Policy", "Requires >= 2 snapshots >80% threshold within 5 minutes."],
+              ["Status", "RECOVERED (Normal state restored)"],
+              [
+                "Linked Incidents",
+                <div key="linked-incidents-mob" className="linked-incidents-cta-row">
+                  <span>View Incident Inspector for correlated HOST_RESOURCE_CONTENTION</span>
+                  <Link className="button button-small incident-cta-btn" href="/incidents">
+                    View Correlated Incident <Icon name="arrow" />
+                  </Link>
+                </div>,
+              ],
             ]}
           />
         </div>

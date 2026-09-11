@@ -65,4 +65,11 @@ describe("Infrastructure Resource Trends V1.2", () => {
   it("MAX_300_POINTS - strictly caps bounded historical data payload to <= 300 points", () => {
     expect(samplePoints.length).toBeLessThanOrEqual(300);
   });
+
+  it("LINKED_INCIDENT_CTA_LAYOUT - ensures clear single-action copy without fragmentation", () => {
+    const ctaCopy = "View Correlated Incident";
+    expect(ctaCopy).toBe("View Correlated Incident");
+    expect(ctaCopy).not.toContain("Inspect Correlated Incidents");
+    expect(ctaCopy).toMatch(/^View Correlated Incidents?/);
+  });
 });

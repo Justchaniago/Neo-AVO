@@ -624,6 +624,23 @@ main {
 .infra-full-panel {
   grid-column: span 12;
 }
+.linked-incidents-cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.incident-cta-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+  font-size: 11px;
+  padding: 5px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .overview-projects {
   grid-column: span 5;
 }

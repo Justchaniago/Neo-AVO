@@ -1401,14 +1401,17 @@ export function InfrastructureScreen() {
               rows={[
                 ["Historical Episode 1", "Runaway grep (12h 27m duration, Peak ~95.6% CPU, Remediation: SIGTERM PID 27879)"],
                 ["Status", "RECOVERED (Normal state restored)"],
-                ["Linked Incidents", "View Incident Inspector for correlated HOST_RESOURCE_CONTENTION"],
+                [
+                  "Linked Incidents",
+                  <div key="linked-incidents" className="linked-incidents-cta-row">
+                    <span>View Incident Inspector for correlated HOST_RESOURCE_CONTENTION</span>
+                    <Link className="button button-small incident-cta-btn" href="/incidents">
+                      View Correlated Incident <Icon name="arrow" />
+                    </Link>
+                  </div>,
+                ],
               ]}
             />
-            <div style={{ marginTop: "1rem" }}>
-              <Link className="square-link" href="/incidents">
-                Inspect Correlated Incidents <Icon name="arrow" />
-              </Link>
-            </div>
           </Panel>
         </div>
       </div>
