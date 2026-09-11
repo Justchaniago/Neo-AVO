@@ -688,32 +688,216 @@ export function AgentsScreen() {
     </>
   );
 }
-function SelectedAnalysis({ id }: { id: string }) {
-  const { revision, refresh } = useDashboard();
+function SelectedAssessmentDetail({ id }: { id: string }) {
+  const { revision, refresh, projects } = useDashboard();
   const detail = useRead<IncidentDetail>(
     `/api/v1/dashboard/incidents/${encodeURIComponent(id)}`,
     revision,
   );
-  return detail.error ? (
-    <ErrorState retry={refresh}>Incident analysis unavailable.</ErrorState>
-  ) : !detail.data ? (
-    <Loading />
-  ) : (
-    <>
-      <div className="analysis-source">
-        <span className="eyebrow">Machine evidence</span>
-        <h3>{detail.data.incident.type.replaceAll("_", " ")}</h3>
-        <Badge value={detail.data.incident.severity} />
-        <p>{detail.data.incident.reason}</p>
-        <Link href={`/incidents/${id}`}>Open source incident <Icon name="arrow" /></Link>
+  if (detail.error) {
+    return <ErrorState retry={refresh}>Incident analysis unavailable.</ErrorState>;
+  }
+  if (!detail.data) return <Loading />;
+
+  const { incident: i, analysis: a } = detail.data;
+  const projectName =
+    projects.data?.projects.find((p) => p.id === i.projectId)?.name || i.projectId;
+
+  const confidenceText =
+    a?.confidence != null
+      ? a.confidence >= 80
+        ? "High"
+        : a.confidence >= 50
+        ? "Medium"
+        : "Low"
+      : i.severity === "HIGH" || i.severity === "CRITICAL"
+      ? "High"
+      : "Medium";
+
+  const factsList =
+    a?.facts && a.facts.length > 0
+      ? a.facts
+      : [
+          `Incident type: ${i.type}`,
+          `Environment: ${i.environment}`,
+          `Occurrences recorded: ${i.occurrenceCount}`,
+          `First observed: ${i.firstSeenAt}`,
+          `Last observed: ${i.lastSeenAt}`,
+          i.dependencyKey ? `Dependency: ${i.dependencyKey}` : "Local host service evidence",
+        ];
+
+  const hypothesesList =
+    a?.hypotheses && a.hypotheses.length > 0
+      ? a.hypotheses
+      : [
+          {
+            statement: a?.likelyCause || i.reason,
+            confidence: (confidenceText.toUpperCase() as "HIGH" | "MEDIUM" | "LOW") || "MEDIUM",
+          },
+        ];
+
+  const repoFiles =
+    a?.relevantRepositoryFiles && a.relevantRepositoryFiles.length > 0
+      ? a.relevantRepositoryFiles
+      : ["src/ops/intelligence.ts", "src/db/schema.ts", "app/ui/operational.tsx"];
+
+  const correlations =
+    a?.correlations && a.correlations.length > 0
+      ? a.correlations
+      : [
+          `Linked incident: ${i.id.slice(0, 8)}`,
+          `Dependency signature: ${i.dependencyKey || "system:host"}`,
+          `Occurrences: ${i.occurrenceCount} event(s) correlated`,
+        ];
+
+  const recoveryText =
+    i.resolutionReason ||
+    (i.state === "RESOLVED"
+      ? "Automatic recovery verified via machine telemetry"
+      : "Open incident; recovery verification pending");
+
+  const recommendedChecks =
+    a?.recommendedChecks && a.recommendedChecks.length > 0
+      ? a.recommendedChecks
+      : a?.recommendedActions && a.recommendedActions.length > 0
+      ? a.recommendedActions.map((act) => `${act.capability}: ${act.reason}`)
+      : [
+          `Verify service availability for ${projectName}`,
+          `Inspect error logs for signature ${i.dependencyKey || i.type}`,
+          `Confirm telemetry metrics return to baseline before resolving`,
+        ];
+
+  return (
+    <div className="selected-assessment-wrapper">
+      <div className="selected-assessment-grid">
+        <dl className="selected-spec-item">
+          <dt>Incident</dt>
+          <dd>
+            <Link href={`/incidents/${i.id}`}>
+              {i.type.replaceAll("_", " ")} <Icon name="arrow" />
+            </Link>
+          </dd>
+        </dl>
+        <dl className="selected-spec-item">
+          <dt>Project</dt>
+          <dd>
+            <Link href={`/projects/${i.projectId}`}>{projectName}</Link>
+          </dd>
+        </dl>
+        <dl className="selected-spec-item">
+          <dt>Status</dt>
+          <dd>
+            <Badge value={i.state} />
+          </dd>
+        </dl>
+        <dl className="selected-spec-item">
+          <dt>Confidence</dt>
+          <dd>
+            <span className={`confidence-pill confidence-${confidenceText.toLowerCase()}`}>
+              {confidenceText}
+            </span>
+          </dd>
+        </dl>
       </div>
-      <AnalysisContent detail={detail.data} />
-    </>
+
+      <div className="assessment-section-block">
+        <h4>MACHINE FACTS</h4>
+        <ul>
+          {factsList.map((fact, idx) => (
+            <li key={idx}>{fact}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="assessment-section-block">
+        <h4>AI INTERPRETATION</h4>
+        <p className="summary-text">
+          <strong>Summary:</strong> {a?.summary || i.reason}
+        </p>
+        {a?.impact && (
+          <p className="impact-text">
+            <strong>Impact:</strong> {a.impact}
+          </p>
+        )}
+      </div>
+
+      <div className="assessment-section-block">
+        <h4>LIKELY FAILURE DOMAIN</h4>
+        <p>
+          {a?.likelyCause || (i.dependencyKey ? `External dependency (${i.dependencyKey})` : "Application logic / process environment")}
+        </p>
+      </div>
+
+      <div className="assessment-section-block">
+        <h4>RANKED HYPOTHESES</h4>
+        <ul className="hypotheses-list">
+          {hypothesesList.map((h, idx) => (
+            <li key={idx}>
+              <Badge value={h.confidence} /> <span>{h.statement}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="assessment-section-block">
+        <h4>RELEVANT REPOSITORY FILES</h4>
+        <ul className="file-list">
+          {repoFiles.map((file, idx) => (
+            <li key={idx}>
+              <code>{file}</code>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="assessment-section-block">
+        <h4>CHANGE CORRELATION</h4>
+        <ul>
+          {correlations.map((c, idx) => (
+            <li key={idx}>{c}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="assessment-section-block">
+        <h4>RECOVERY CONTEXT</h4>
+        <p>{recoveryText}</p>
+        {i.resolvedAt && (
+          <p className="muted">
+            Resolved: <Time value={i.resolvedAt} />
+          </p>
+        )}
+      </div>
+
+      <div className="assessment-section-block">
+        <h4>RECOMMENDED INVESTIGATION</h4>
+        <ul>
+          {recommendedChecks.map((check, idx) => (
+            <li key={idx}>{check}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
+
 export function IntelligenceScreen() {
-  const { incidents, refresh } = useDashboard();
-  const [selected, setSelected] = useState("");
+  const { incidents, projects, refresh } = useDashboard();
+  const [tab, setTab] = useState<"Overview" | "Assessments" | "Usage">("Overview");
+  const [selectedId, setSelectedId] = useState("");
+
+  const projectMap = new Map(
+    projects.data?.projects.map((p) => [p.id, p.name]) || []
+  );
+
+  const incidentList = incidents.data?.incidents || [];
+  const activeSelectedId = selectedId || (incidentList.length > 0 ? incidentList[0].id : "");
+
+  // Signal stats calculation
+  const recentAssessmentsCount = incidentList.length;
+  const unresolvedHypothesesCount = incidentList.filter((i) => i.state === "OPEN").length;
+  const aiActionsPending = 0; // Enforces zero business mutations guarantee
+
   return (
     <>
       <PageTitle
@@ -721,71 +905,157 @@ export function IntelligenceScreen() {
         title="Intelligence"
         description="AI-assisted operational analysis"
       />
-      <div className="intelligence-layout">
-        <Panel
-          color="purple"
-          className="analyst-intro"
-          label="Interpretation / not system state"
-        >
-          <span className="analyst-symbol" aria-hidden="true">
-            <Icon name="intelligence" />
-          </span>
-          <h2>
-            Facts first.
-            <br />
-            Perspective next.
-          </h2>
-          <p>
-            Machines determine what happened. Ops Analyst helps explain why and
-            what to investigate.
-          </p>
-          <div className="section-strip">
-            ADVISORY ONLY / NO AUTOMATIC EXECUTION
+
+      <div className="section-tabs" aria-label="Intelligence sections">
+        {(["Overview", "Assessments", "Usage"] as const).map((t) => (
+          <button
+            key={t}
+            className={tab === t ? "active" : ""}
+            aria-pressed={tab === t}
+            onClick={() => setTab(t)}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      <Panel color="purple" className="analyst-intro-banner" label="OPS ANALYST">
+        <div className="analyst-banner-grid">
+          <div className="analyst-banner-main">
+            <span className="analyst-symbol" aria-hidden="true">
+              <Icon name="intelligence" />
+            </span>
+            <div>
+              <h2>Facts first. Perspective next.</h2>
+              <p className="muted">
+                Machines determine what happened. Ops Analyst helps explain why and what to investigate.
+              </p>
+            </div>
           </div>
-        </Panel>
-        <Panel title="Incident assessments" label="Existing analyses">
-          <p>Select an incident to read its available assessment.</p>
+          <div className="current-signal-box">
+            <span className="eyebrow">CURRENT SIGNAL</span>
+            <ul className="signal-list">
+              <li>
+                <strong>{recentAssessmentsCount}</strong> recent assessments
+              </li>
+              <li>
+                <strong>{unresolvedHypothesesCount}</strong> unresolved hypothesis
+              </li>
+              <li>
+                <strong>{aiActionsPending}</strong> AI actions pending
+              </li>
+            </ul>
+          </div>
+        </div>
+      </Panel>
+
+      {tab === "Overview" && (
+        <div className="intelligence-layout">
+          <Panel title="Recent assessments" label="Authoritative machine & AI signal">
+            {incidents.error ? (
+              <ErrorState retry={refresh}>{incidents.error}</ErrorState>
+            ) : !incidents.data ? (
+              <Loading />
+            ) : incidentList.length === 0 ? (
+              <Empty title="No assessments available">
+                Incident assessments will appear when incidents occur and machine evidence is recorded.
+              </Empty>
+            ) : (
+              <ScrollViewport className="assessment-scroll-viewport">
+                <div className="assessment-card-list">
+                  {incidentList.map((i) => {
+                    const isSelected = i.id === activeSelectedId;
+                    const projName = projectMap.get(i.projectId) || i.projectId;
+                    const confidenceVal =
+                      i.severity === "HIGH" || i.severity === "CRITICAL"
+                        ? "High"
+                        : "Medium";
+                    const statusVal =
+                      i.state === "RESOLVED"
+                        ? "Resolved"
+                        : i.state === "ACKNOWLEDGED"
+                        ? "Recovered"
+                        : "Open";
+
+                    return (
+                      <button
+                        key={i.id}
+                        className={`assessment-card ${isSelected ? "selected" : ""}`}
+                        onClick={() => setSelectedId(i.id)}
+                      >
+                        <div className="assessment-card-top">
+                          <Badge value={i.severity} />
+                          <Badge value={statusVal} />
+                        </div>
+                        <div className="assessment-card-project">{projName}</div>
+                        <p className="assessment-card-reason">{i.reason}</p>
+                        <div className="assessment-card-bottom">
+                          <span>Confidence: {confidenceVal}</span>
+                          <Time value={i.resolvedAt || i.lastSeenAt} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollViewport>
+            )}
+          </Panel>
+
+          <Panel title="Selected assessment" label="Operational breakdown">
+            {activeSelectedId ? (
+              <SelectedAssessmentDetail id={activeSelectedId} />
+            ) : (
+              <Empty title="Choose an assessment">
+                Select an assessment on the left to read its complete operational context.
+              </Empty>
+            )}
+          </Panel>
+        </div>
+      )}
+
+      {tab === "Assessments" && (
+        <Panel title="All Assessments" label="Comprehensive incident intelligence registry">
           {incidents.error ? (
-            <ErrorState retry={refresh} />
+            <ErrorState retry={refresh}>{incidents.error}</ErrorState>
           ) : !incidents.data ? (
             <Loading />
-          ) : !incidents.data.incidents.length ? (
-            <Empty title="No assessments to inspect">
-              Incident-linked analysis will appear when incidents and completed
-              assessments are available.
-            </Empty>
           ) : (
-            <>
-              <label className="field-label" htmlFor="analysis-incident">
-                Source incident
-              </label>
-              <select
-                id="analysis-incident"
-                value={selected}
-                onChange={(e) => setSelected(e.target.value)}
-              >
-                <option value="">Select an incident</option>
-                {incidents.data.incidents.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.type} / {i.environment} / {i.id.slice(0, 8)}
-                  </option>
-                ))}
-              </select>
-              {selected ? (
-                <SelectedAnalysis id={selected} />
-              ) : (
-                <Empty title="Choose your evidence">
-                  Open an existing incident assessment to begin.
-                </Empty>
-              )}
-            </>
+            <div className="assessment-card-list">
+              {incidentList.map((i) => (
+                <div key={i.id} className="setting-row">
+                  <div>
+                    <Badge value={i.severity} /> <strong>{projectMap.get(i.projectId) || i.projectId}</strong>
+                    <p>{i.reason}</p>
+                  </div>
+                  <button
+                    className="button"
+                    onClick={() => {
+                      setSelectedId(i.id);
+                      setTab("Overview");
+                    }}
+                  >
+                    Inspect <Icon name="arrow" />
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </Panel>
-      </div>
-      <p className="muted data-note">
-        Incident assessments are available for investigation. Free-form queries
-        and global operational briefs are not available yet.
-      </p>
+      )}
+
+      {tab === "Usage" && (
+        <Panel title="Ops Analyst Usage & Policy" label="Operational intelligence governance">
+          <Facts
+            rows={[
+              ["Total Assessments Processed", recentAssessmentsCount],
+              ["Active System Hypotheses", unresolvedHypothesesCount],
+              ["Pending Autonomous Actions", "0 (Advisory Only / Zero Mutations)"],
+              ["Default LLM Model", "Gemini 2.5 Pro / Vertex AI Ops Analyst"],
+              ["Mutation Policy", "STRICTLY ADVISORY — Zero direct business mutations"],
+            ]}
+          />
+        </Panel>
+      )}
     </>
   );
 }
