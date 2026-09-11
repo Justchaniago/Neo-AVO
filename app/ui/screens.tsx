@@ -173,6 +173,7 @@ export function OverviewScreen() {
           </Link>
         </Panel>
         <ServerHealthCard />
+
         <Panel
           className="overview-projects"
           label="04 / Connected systems"
@@ -918,7 +919,7 @@ export function InfrastructureScreen() {
         description="Live telemetry, historical aggregation, dependency mapping, and blast-radius for shared-prod-01"
       />
       <div className="overview-bento">
-        <Panel label="01 / Host Overview" title={infra?.host?.name || "shared-prod-01"}>
+        <Panel className="infra-half-panel" label="01 / Host Overview" title={infra?.host?.name || "shared-prod-01"}>
           <Facts
             rows={[
               ["Provider", infra?.host?.provider || "AWS Lightsail"],
@@ -931,7 +932,7 @@ export function InfrastructureScreen() {
           />
         </Panel>
 
-        <Panel label="02 / Live Resource Health" title={`Pressure State: ${state}`}>
+        <Panel className="infra-half-panel" label="02 / Live Resource Health" title={`Pressure State: ${state}`}>
           <Facts
             rows={[
               ["CPU / Load", `${latest?.cpuPercent ?? "—"}%`],
@@ -943,7 +944,7 @@ export function InfrastructureScreen() {
           />
         </Panel>
 
-        <Panel label="03 / Host → Project Dependency Mapping" title="Monitored Services & Ownership">
+        <Panel className="infra-half-panel" label="03 / Host → Project Dependency Mapping" title="Monitored Services & Ownership">
           <Facts
             rows={[
               ["Neo AVO Web (neo-avo-web)", "Project: Neo AVO (ACTIVE / Critical)"],
@@ -956,7 +957,7 @@ export function InfrastructureScreen() {
           />
         </Panel>
 
-        <Panel label="04 / Host Blast-Radius Context" title="Potentially Affected Projects">
+        <Panel className="infra-half-panel" label="04 / Host Blast-Radius Context" title="Potentially Affected Projects">
           <Facts
             rows={[
               ["Primary Host", "shared-prod-01"],
@@ -967,7 +968,7 @@ export function InfrastructureScreen() {
           />
         </Panel>
 
-        <Panel label="05 / Resource Trend History & Aggregation" title={`Historical Range: ${range}`}>
+        <Panel className="infra-full-panel" label="05 / Resource Trend History & Aggregation" title={`Historical Range: ${range}`}>
           <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
             {(["1h", "6h", "24h", "7d", "30d"] as const).map((r) => (
               <button
@@ -975,10 +976,11 @@ export function InfrastructureScreen() {
                 onClick={() => setRange(r)}
                 style={{
                   padding: "0.25rem 0.75rem",
-                  background: range === r ? "#22c55e" : "#1e293b",
-                  color: "#ffffff",
-                  border: "none",
+                  background: range === r ? "var(--lime)" : "var(--canvas)",
+                  color: "var(--ink)",
+                  border: "var(--line)",
                   borderRadius: "4px",
+                  fontWeight: 700,
                   cursor: "pointer",
                 }}
               >
@@ -1001,7 +1003,7 @@ export function InfrastructureScreen() {
           )}
         </Panel>
 
-        <Panel label="06 / Pressure Episodes & Incident Context" title="Historical Episodes">
+        <Panel className="infra-full-panel" label="06 / Pressure Episodes & Incident Context" title="Historical Episodes">
           <Facts
             rows={[
               ["Historical Episode 1", "Runaway grep (12h 27m duration, Peak ~95.6% CPU, Remediation: SIGTERM PID 27879)"],
@@ -1016,6 +1018,7 @@ export function InfrastructureScreen() {
           </div>
         </Panel>
       </div>
+
     </>
   );
 }

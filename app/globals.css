@@ -591,12 +591,23 @@ main {
   font-size: 12px;
   font-weight: 700;
 }
+.server-health-card {
+  grid-column: span 12;
+}
+.infra-half-panel {
+  grid-column: span 6;
+}
+.infra-full-panel {
+  grid-column: span 12;
+}
 .overview-projects {
   grid-column: span 5;
 }
+
 .overview-activity {
   grid-column: span 7;
 }
+
 .overview-intelligence {
   grid-column: span 8;
   position: relative;
