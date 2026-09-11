@@ -2577,6 +2577,29 @@ dialog::backdrop {
     background: var(--canvas);
   }
 
+  /* Mobile Intelligence */
+  .mobile-intelligence {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .mobile-assessment-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .mobile-intelligence .assessment-card {
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .mobile-intelligence .assessment-card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .mobile-intelligence .assessment-card-meta {
+    margin-left: auto;
+  }
+
   .mobile-card-lead {
     font-size: 14px;
     font-weight: 700;

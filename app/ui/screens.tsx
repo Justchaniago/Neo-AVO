@@ -40,6 +40,7 @@ import {
 import { MobileProjectDetail } from "./mobile/project-detail";
 import { MobileIncidentDetail } from "./mobile/incident-detail";
 import { MobileInfrastructure } from "./mobile/infrastructure";
+import { MobileIntelligence } from "./mobile/intelligence";
 
 function Refresh() {
   const { refresh, checkedAt, refreshing, online, stale } = useDashboard();
@@ -900,174 +901,180 @@ export function IntelligenceScreen() {
 
   return (
     <>
-      <PageTitle
-        eyebrow="Ops analyst / 06"
-        title="Intelligence"
-        description="AI-assisted operational analysis"
-      />
+      <div className="desktop-only">
+        <PageTitle
+          eyebrow="Ops analyst / 06"
+          title="Intelligence"
+          description="AI-assisted operational analysis"
+        />
 
-      <div className="section-tabs" aria-label="Intelligence sections">
-        {(["Overview", "Assessments", "Usage"] as const).map((t) => (
-          <button
-            key={t}
-            className={tab === t ? "active" : ""}
-            aria-pressed={tab === t}
-            onClick={() => setTab(t)}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+        <div className="section-tabs" aria-label="Intelligence sections">
+          {(["Overview", "Assessments", "Usage"] as const).map((t) => (
+            <button
+              key={t}
+              className={tab === t ? "active" : ""}
+              aria-pressed={tab === t}
+              onClick={() => setTab(t)}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
 
-      <Panel color="purple" className="analyst-intro-banner" label="OPS ANALYST">
-        <div className="analyst-banner-grid">
-          <div className="analyst-banner-main">
-            <span className="analyst-symbol" aria-hidden="true">
-              <Icon name="intelligence" />
-            </span>
-            <div>
-              <h2>Facts first. Perspective next.</h2>
-              <p className="muted">
-                Machines determine what happened. Ops Analyst helps explain why and what to investigate.
-              </p>
+        <Panel color="purple" className="analyst-intro-banner" label="OPS ANALYST">
+          <div className="analyst-banner-grid">
+            <div className="analyst-banner-main">
+              <span className="analyst-symbol" aria-hidden="true">
+                <Icon name="intelligence" />
+              </span>
+              <div>
+                <h2>Facts first. Perspective next.</h2>
+                <p className="muted">
+                  Machines determine what happened. Ops Analyst helps explain why and what to investigate.
+                </p>
+              </div>
+            </div>
+            <div className="current-signal-box">
+              <span className="eyebrow">CURRENT SIGNAL</span>
+              <ul className="signal-list">
+                <li>
+                  <strong>{recentAssessmentsCount}</strong> recent assessments
+                </li>
+                <li>
+                  <strong>{unresolvedHypothesesCount}</strong> unresolved hypothesis
+                </li>
+                <li>
+                  <strong>{aiActionsPending}</strong> AI actions pending
+                </li>
+              </ul>
             </div>
           </div>
-          <div className="current-signal-box">
-            <span className="eyebrow">CURRENT SIGNAL</span>
-            <ul className="signal-list">
-              <li>
-                <strong>{recentAssessmentsCount}</strong> recent assessments
-              </li>
-              <li>
-                <strong>{unresolvedHypothesesCount}</strong> unresolved hypothesis
-              </li>
-              <li>
-                <strong>{aiActionsPending}</strong> AI actions pending
-              </li>
-            </ul>
-          </div>
-        </div>
-      </Panel>
+        </Panel>
 
-      {tab === "Overview" && (
-        <div className="intelligence-layout">
-          <Panel title="Recent assessments" label="Authoritative machine & AI signal">
+        {tab === "Overview" && (
+          <div className="intelligence-layout">
+            <Panel title="Recent assessments" label="Authoritative machine & AI signal">
+              {incidents.error ? (
+                <ErrorState retry={refresh}>{incidents.error}</ErrorState>
+              ) : !incidents.data ? (
+                <Loading />
+              ) : incidentList.length === 0 ? (
+                <Empty title="No assessments available">
+                  Incident assessments will appear when incidents occur and machine evidence is recorded.
+                </Empty>
+              ) : (
+                <ScrollViewport className="assessment-scroll-viewport">
+                  <div className="assessment-card-list">
+                    {incidentList.map((i) => {
+                      const isSelected = i.id === activeSelectedId;
+                      const projName = projectMap.get(i.projectId) || i.projectId;
+                      const confidenceVal =
+                        i.severity === "HIGH" || i.severity === "CRITICAL"
+                          ? "High"
+                          : "Medium";
+                      const statusVal =
+                        i.state === "RESOLVED"
+                          ? "Resolved"
+                          : i.state === "ACKNOWLEDGED"
+                          ? "Recovered"
+                          : "Open";
+
+                      return (
+                        <button
+                          key={i.id}
+                          className={`assessment-card ${isSelected ? "selected" : ""}`}
+                          onClick={() => setSelectedId(i.id)}
+                        >
+                          <div className="assessment-card-header">
+                            <div className="assessment-card-badges">
+                              <Badge value={i.severity} />
+                              <Badge value={statusVal} />
+                            </div>
+                            <div className="assessment-card-meta">
+                              <span className={`confidence-pill confidence-${confidenceVal.toLowerCase()}`}>
+                                {confidenceVal}
+                              </span>
+                              <span className="assessment-card-time">
+                                <Time value={i.resolvedAt || i.lastSeenAt} />
+                              </span>
+                            </div>
+                          </div>
+                          <div className="assessment-card-body">
+                            <div className="assessment-card-title" title={projName}>
+                              {projName}
+                            </div>
+                            <p className="assessment-card-reason" title={i.reason}>
+                              {i.reason}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </ScrollViewport>
+              )}
+            </Panel>
+
+            <Panel title="Selected assessment" label="Operational breakdown">
+              {activeSelectedId ? (
+                <SelectedAssessmentDetail id={activeSelectedId} />
+              ) : (
+                <Empty title="Choose an assessment">
+                  Select an assessment on the left to read its complete operational context.
+                </Empty>
+              )}
+            </Panel>
+          </div>
+        )}
+
+        {tab === "Assessments" && (
+          <Panel title="All Assessments" label="Comprehensive incident intelligence registry">
             {incidents.error ? (
               <ErrorState retry={refresh}>{incidents.error}</ErrorState>
             ) : !incidents.data ? (
               <Loading />
-            ) : incidentList.length === 0 ? (
-              <Empty title="No assessments available">
-                Incident assessments will appear when incidents occur and machine evidence is recorded.
-              </Empty>
             ) : (
-              <ScrollViewport className="assessment-scroll-viewport">
-                <div className="assessment-card-list">
-                  {incidentList.map((i) => {
-                    const isSelected = i.id === activeSelectedId;
-                    const projName = projectMap.get(i.projectId) || i.projectId;
-                    const confidenceVal =
-                      i.severity === "HIGH" || i.severity === "CRITICAL"
-                        ? "High"
-                        : "Medium";
-                    const statusVal =
-                      i.state === "RESOLVED"
-                        ? "Resolved"
-                        : i.state === "ACKNOWLEDGED"
-                        ? "Recovered"
-                        : "Open";
-
-                    return (
-                      <button
-                        key={i.id}
-                        className={`assessment-card ${isSelected ? "selected" : ""}`}
-                        onClick={() => setSelectedId(i.id)}
-                      >
-                        <div className="assessment-card-header">
-                          <div className="assessment-card-badges">
-                            <Badge value={i.severity} />
-                            <Badge value={statusVal} />
-                          </div>
-                          <div className="assessment-card-meta">
-                            <span className={`confidence-pill confidence-${confidenceVal.toLowerCase()}`}>
-                              {confidenceVal}
-                            </span>
-                            <span className="assessment-card-time">
-                              <Time value={i.resolvedAt || i.lastSeenAt} />
-                            </span>
-                          </div>
-                        </div>
-                        <div className="assessment-card-body">
-                          <div className="assessment-card-title" title={projName}>
-                            {projName}
-                          </div>
-                          <p className="assessment-card-desc" title={i.reason}>
-                            {i.reason}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </ScrollViewport>
-            )}
-          </Panel>
-
-          <Panel title="Selected assessment" label="Operational breakdown">
-            {activeSelectedId ? (
-              <SelectedAssessmentDetail id={activeSelectedId} />
-            ) : (
-              <Empty title="Choose an assessment">
-                Select an assessment on the left to read its complete operational context.
-              </Empty>
-            )}
-          </Panel>
-        </div>
-      )}
-
-      {tab === "Assessments" && (
-        <Panel title="All Assessments" label="Comprehensive incident intelligence registry">
-          {incidents.error ? (
-            <ErrorState retry={refresh}>{incidents.error}</ErrorState>
-          ) : !incidents.data ? (
-            <Loading />
-          ) : (
-            <div className="assessment-card-list">
-              {incidentList.map((i) => (
-                <div key={i.id} className="setting-row">
-                  <div>
-                    <Badge value={i.severity} /> <strong>{projectMap.get(i.projectId) || i.projectId}</strong>
-                    <p>{i.reason}</p>
+              <div className="assessment-card-list">
+                {incidentList.map((i) => (
+                  <div key={i.id} className="setting-row">
+                    <div>
+                      <Badge value={i.severity} /> <strong>{projectMap.get(i.projectId) || i.projectId}</strong>
+                      <p>{i.reason}</p>
+                    </div>
+                    <button
+                      className="button"
+                      onClick={() => {
+                        setSelectedId(i.id);
+                        setTab("Overview");
+                      }}
+                    >
+                      Inspect <Icon name="arrow" />
+                    </button>
                   </div>
-                  <button
-                    className="button"
-                    onClick={() => {
-                      setSelectedId(i.id);
-                      setTab("Overview");
-                    }}
-                  >
-                    Inspect <Icon name="arrow" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </Panel>
-      )}
+                ))}
+              </div>
+            )}
+          </Panel>
+        )}
 
-      {tab === "Usage" && (
-        <Panel title="Ops Analyst Usage & Policy" label="Operational intelligence governance">
-          <Facts
-            rows={[
-              ["Total Assessments Processed", recentAssessmentsCount],
-              ["Active System Hypotheses", unresolvedHypothesesCount],
-              ["Pending Autonomous Actions", "0 (Advisory Only / Zero Mutations)"],
-              ["Default LLM Model", "Gemini 2.5 Pro / Vertex AI Ops Analyst"],
-              ["Mutation Policy", "STRICTLY ADVISORY — Zero direct business mutations"],
-            ]}
-          />
-        </Panel>
-      )}
+        {tab === "Usage" && (
+          <Panel title="Ops Analyst Usage & Policy" label="Operational intelligence governance">
+            <Facts
+              rows={[
+                ["Total Assessments Processed", recentAssessmentsCount],
+                ["Active System Hypotheses", unresolvedHypothesesCount],
+                ["Pending Autonomous Actions", "0 (Advisory Only / Zero Mutations)"],
+                ["Default LLM Model", "Gemini 2.5 Pro / Vertex AI Ops Analyst"],
+                ["Mutation Policy", "STRICTLY ADVISORY — Zero direct business mutations"],
+              ]}
+            />
+          </Panel>
+        )}
+      </div>
+
+      <div className="mobile-only">
+        <MobileIntelligence />
+      </div>
     </>
   );
 }
