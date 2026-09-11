@@ -248,14 +248,14 @@ small {
 .sidebar nav {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  margin-top: 28px;
+  gap: 6px;
+  margin-top: 24px;
 }
 .sidebar nav a {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 13px 12px;
+  padding: 10px 12px;
   color: var(--canvas);
   font-size: 12px;
   font-weight: 800;
@@ -264,10 +264,6 @@ small {
   text-transform: uppercase;
   border: 2px solid transparent;
   border-radius: 5px;
-}
-.sidebar nav a:nth-child(5),
-.sidebar nav a:last-child {
-  margin-top: 17px;
 }
 .sidebar nav a:hover {
   border-color: #6a6a60;
@@ -279,14 +275,32 @@ small {
   box-shadow: 3px 3px 0 #737d53;
 }
 .nav-icon {
-  font-size: 21px;
-  width: 25px;
-  text-align: center;
-  line-height: 1;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.nav-icon .ui-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 .nav-arrow {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-left: auto;
   opacity: 0;
+  flex-shrink: 0;
+}
+.nav-arrow .ui-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 .sidebar nav a[aria-current="page"] .nav-arrow {
   opacity: 1;

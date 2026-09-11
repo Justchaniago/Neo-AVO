@@ -23,7 +23,7 @@ export function MobileBottomNav({ onOpenMenu }: { onOpenMenu: () => void }) {
     { href: "/", label: "Overview", icon: "grid" },
     { href: "/projects", label: "Projects", icon: "project" },
     { href: "/incidents", label: "Incidents", icon: "attention", badge: activeIncidentsCount },
-    { href: "/infrastructure", label: "Infra", icon: "project" },
+    { href: "/infrastructure", label: "Infra", icon: "infrastructure" },
     { href: "#menu", label: "More", icon: "menu", isMenu: true },
   ];
 

@@ -14,8 +14,8 @@ import { MobileBottomNav } from "./mobile/nav";
 const navigation: [string, string, IconName][] = [
   ["/", "Overview", "grid"],
   ["/projects", "Projects", "project"],
-  ["/infrastructure", "Infrastructure", "project"],
-  ["/activity", "Activity", "arrow"],
+  ["/infrastructure", "Infrastructure", "infrastructure"],
+  ["/activity", "Activity", "activity"],
   ["/incidents", "Incidents", "attention"],
   ["/agents", "Agents", "agents"],
   ["/intelligence", "Intelligence", "intelligence"],
