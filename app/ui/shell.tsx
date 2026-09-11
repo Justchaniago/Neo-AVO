@@ -12,12 +12,14 @@ import { Overlay } from "./primitives";
 const navigation: [string, string, IconName][] = [
   ["/", "Overview", "grid"],
   ["/projects", "Projects", "project"],
+  ["/infrastructure", "Infrastructure", "project"],
   ["/activity", "Activity", "arrow"],
   ["/incidents", "Incidents", "attention"],
   ["/agents", "Agents", "agents"],
   ["/intelligence", "Intelligence", "intelligence"],
   ["/settings", "Settings", "settings"],
 ];
+
 function ConsoleShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [menu, setMenu] = useState(false);

@@ -10,8 +10,20 @@ type Db = NodePgDatabase<typeof schema>;
 
 export async function getOverview(db: Db) {
   const projects = await listProjects(db);
-  return { projects: projects.map((project) => { const { commandAuthCiphertext: _c, commandAuthIv: _i, commandAuthTag: _t, ...safe } = project; return safe; }) };
+  const [latestSnapshot] = await db.select().from(schema.resourceSnapshots).where(eq(schema.resourceSnapshots.scope, "neo-avo-host")).orderBy(desc(schema.resourceSnapshots.observedAt)).limit(1);
+  return {
+    projects: projects.map((project) => { const { commandAuthCiphertext: _c, commandAuthIv: _i, commandAuthTag: _t, ...safe } = project; return safe; }),
+    hostSnapshot: latestSnapshot ? {
+      scope: latestSnapshot.scope,
+      cpuPercent: latestSnapshot.cpuPercent,
+      memoryPercent: latestSnapshot.memoryPercent,
+      diskPercent: latestSnapshot.diskPercent,
+      serviceState: latestSnapshot.serviceState,
+      observedAt: latestSnapshot.observedAt,
+    } : null,
+  };
 }
+
 
 export async function getProjectDetail(db: Db, projectId: string) {
   const project = await findProjectById(db, projectId);

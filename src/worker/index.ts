@@ -37,7 +37,7 @@ export async function startWorker() {
         try { await evaluateExpectedExecutions(db); } catch (error) { log("error", "expected_execution", "evaluation_failed", { errorClass: error instanceof Error ? error.name : "unknown" }); }
         lastExpectedExecutionCheckAt = Date.now();
       }
-      if (Date.now() - lastResourceSnapshotAt >= 300_000) {
+      if (Date.now() - lastResourceSnapshotAt >= 30_000) {
         try { await collectResourceSnapshot(db); } catch (error) { log("error", "resources", "snapshot_failed", { errorClass: error instanceof Error ? error.name : "unknown" }); }
         lastResourceSnapshotAt = Date.now();
       }
