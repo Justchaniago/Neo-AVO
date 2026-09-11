@@ -122,7 +122,7 @@ export const incidents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => ({ incidentDedupIdx: uniqueIndex("incidents_open_dedup_idx").on(table.projectId, table.environment, table.dedupKey, table.state) }),
+  (table) => ({ incidentDedupIdx: uniqueIndex("incidents_open_dedup_idx").on(table.projectId, table.environment, table.dedupKey).where(sql`${table.state} <> 'RESOLVED'`) }),
 );
 
 export const incidentEvents = pgTable(

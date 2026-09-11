@@ -1,0 +1,2 @@
+DROP INDEX "incidents_open_dedup_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "incidents_open_dedup_idx" ON "incidents" USING btree ("project_id","environment","dedup_key") WHERE "incidents"."state" <> 'RESOLVED';
