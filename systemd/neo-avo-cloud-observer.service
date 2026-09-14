@@ -1,0 +1,19 @@
+[Unit]
+Description=Neo AVO Multi-Cloud Infrastructure and FinOps Observer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=neo-avo
+Group=neo-avo
+WorkingDirectory=/opt/neo-avo
+EnvironmentFile=-/etc/neo-avo/neo-avo.env
+ExecStart=/opt/neo-avo/node_modules/.bin/tsx src/cloud-observer/worker.ts
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

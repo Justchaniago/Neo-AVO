@@ -11,6 +11,14 @@ const envSchema = z.object({
   VERTEX_LOCATION: z.string().min(1).default("us-central1"),
   VERTEX_MODEL: z.string().min(1).default("gemini-3.1-flash-lite"),
   COMMAND_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/).optional(),
+  CLOUD_OBSERVER_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  CLOUD_OBSERVER_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(10_000),
+  CLOUD_OBSERVER_INFRA_INTERVAL_MS: z.coerce.number().int().min(10_000).default(60_000),
+  CLOUD_OBSERVER_COST_INTERVAL_MS: z.coerce.number().int().min(60_000).default(900_000),
+  CLOUD_OBSERVER_CREDITS_INTERVAL_MS: z.coerce.number().int().min(60_000).default(1_800_000),
+  AWS_REGION: z.string().min(1).optional(),
+  AWS_ACCOUNT_ID: z.string().min(1).optional(),
+  GCP_PROJECT_ID: z.string().min(1).optional(),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

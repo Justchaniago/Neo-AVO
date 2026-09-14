@@ -364,3 +364,72 @@ export const commands = pgTable("commands", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// M0 observer-owned storage. These tables are deliberately separate from
+// operational production tables and contain normalized values only.
+export const cloudResourceSnapshots = pgTable("cloud_resource_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  provider: text("provider").notNull(),
+  accountId: text("account_id").notNull(),
+  resourceId: text("resource_id").notNull(),
+  resourceType: text("resource_type").notNull(),
+  region: text("region"),
+  status: text("status").notNull(),
+  cpuUtilization: integer("cpu_utilization"),
+  memoryUtilization: integer("memory_utilization"),
+  diskUtilization: integer("disk_utilization"),
+  networkInBytes: integer("network_in_bytes"),
+  networkOutBytes: integer("network_out_bytes"),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  providerDataAsOf: timestamp("provider_data_as_of", { withTimezone: true }),
+  freshness: text("freshness").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, string | number | boolean>>().notNull().default({}),
+});
+
+export const cloudCostSnapshots = pgTable("cloud_cost_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  provider: text("provider").notNull(),
+  accountId: text("account_id").notNull(),
+  currency: text("currency"),
+  monthToDateGrossCost: integer("month_to_date_gross_cost"),
+  creditsApplied: integer("credits_applied"),
+  monthToDateNetCost: integer("month_to_date_net_cost"),
+  dailyBurnRate: integer("daily_burn_rate"),
+  projectedMonthEnd: integer("projected_month_end"),
+  valueStatus: jsonb("value_status").$type<Record<string, FinancialStatus>>().notNull().default({}),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  providerDataAsOf: timestamp("provider_data_as_of", { withTimezone: true }),
+  freshness: text("freshness").notNull(),
+});
+
+export const cloudCreditSnapshots = pgTable("cloud_credit_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  provider: text("provider").notNull(),
+  accountId: text("account_id").notNull(),
+  creditType: text("credit_type").notNull(),
+  currency: text("currency"),
+  originalAmount: integer("original_amount"),
+  remainingAmount: integer("remaining_amount"),
+  estimatedRemainingAmount: integer("estimated_remaining_amount"),
+  expiration: timestamp("expiration", { withTimezone: true }),
+  valueStatus: text("value_status").notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  providerDataAsOf: timestamp("provider_data_as_of", { withTimezone: true }),
+  freshness: text("freshness").notNull(),
+});
+
+export const cloudObserverState = pgTable("cloud_observer_state", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  provider: text("provider").notNull(),
+  capability: text("capability").notNull(),
+  status: text("status").notNull(),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }).notNull(),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  providerDataAsOf: timestamp("provider_data_as_of", { withTimezone: true }),
+  safeError: text("safe_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  providerCapabilityIdx: uniqueIndex("cloud_observer_state_provider_capability_idx").on(table.provider, table.capability),
+}));
+
+export type FinancialStatus = "ACTUAL" | "ESTIMATED" | "DELAYED" | "UNKNOWN";
