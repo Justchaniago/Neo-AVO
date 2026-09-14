@@ -30,6 +30,29 @@ describe("deterministic incident engine", () => {
     expect(repo.createNotification).not.toHaveBeenCalled();
   });
 
+  it("deduplicates active incidents regardless of age (even > 1 day old) without 15-minute expiration", async () => {
+    repo.findDeduplicatedIncident.mockResolvedValue({ id: "incident-old", severity: "HIGH", type: "TASK_FAILURE", reason: "timeout", environment: "production", state: "OPEN" });
+    const dayLater = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    await recordIncidentForEvent({} as never, project, { id: "event-day-later", type: "task.failed", occurredAt: dayLater, data: { taskId: "task-1", message: "timeout" } }, dayLater);
+    expect(repo.findDeduplicatedIncident).toHaveBeenCalledWith(expect.anything(), project.id, project.environment, expect.any(String));
+    expect(repo.updateIncident).toHaveBeenCalledOnce();
+    expect(repo.createIncident).not.toHaveBeenCalled();
+  });
+
+  it("preserves ACKNOWLEDGED state when updating an existing acknowledged incident", async () => {
+    repo.findDeduplicatedIncident.mockResolvedValue({ id: "incident-ack", severity: "HIGH", type: "TASK_FAILURE", reason: "timeout", environment: "production", state: "ACKNOWLEDGED" });
+    await recordIncidentForEvent({} as never, project, { id: "event-ack-new", type: "task.failed", occurredAt: now, data: { taskId: "task-1", message: "timeout" } }, now);
+    expect(repo.updateIncident).toHaveBeenCalledWith(expect.anything(), "incident-ack", expect.anything(), "event-ack-new", now);
+    expect(repo.createIncident).not.toHaveBeenCalled();
+  });
+
+  it("creates a new incident when previous incident with same dedupKey was RESOLVED", async () => {
+    repo.findDeduplicatedIncident.mockResolvedValue(null);
+    await recordIncidentForEvent({} as never, project, { id: "event-after-resolve", type: "task.failed", occurredAt: now, data: { taskId: "task-1", message: "timeout" } }, now);
+    expect(repo.createIncident).toHaveBeenCalledOnce();
+    expect(repo.createNotification).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ kind: "initial", severity: "HIGH" }));
+  });
+
   it("keeps unrelated signatures separate and creates one immediate notification", async () => {
     repo.findDeduplicatedIncident.mockResolvedValue(null);
     await recordIncidentForEvent({} as never, project, { id: "event-3", type: "task.failed", occurredAt: now, data: { taskId: "task-1", message: "quota exceeded" } }, now);

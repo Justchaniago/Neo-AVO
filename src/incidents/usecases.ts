@@ -8,7 +8,6 @@ import { isAnalysisEligible } from "../ops/eligibility";
 import { createAnalysisIfAbsent } from "../ops/repository";
 
 type Db = NodePgDatabase<typeof schema>;
-const DEDUP_WINDOW_MS = 15 * 60 * 1000;
 
 function telegramMessage(incident: { severity: string; type: string; reason: string; environment: string }) {
   return `[${incident.severity}] ${incident.type} (${incident.environment})\n${incident.reason}`;
@@ -17,8 +16,9 @@ function telegramMessage(incident: { severity: string; type: string; reason: str
 export async function recordIncidentForEvent(db: Db, project: IncidentProject, event: IncidentEvent, now = new Date()) {
   const trigger = incidentTrigger(project, event, now);
   if (!trigger) return null;
-  const existing = await findDeduplicatedIncident(db, project.id, project.environment, trigger.dedupKey, new Date(now.getTime() - DEDUP_WINDOW_MS));
+  const existing = await findDeduplicatedIncident(db, project.id, project.environment, trigger.dedupKey);
   const incident = existing ? await updateIncident(db, existing.id, trigger, event.id, now) : await createIncident(db, project.id, project.environment, trigger, event.id, now);
+  if (!incident) return null;
   if (!existing && shouldNotifyImmediately(trigger.severity)) await createNotification(db, { incidentId: incident.id, kind: "initial", dedupKey: `${incident.id}:initial`, severity: trigger.severity, message: telegramMessage(incident) });
   if (!existing && isAnalysisEligible(incident.severity, incident.type)) await createAnalysisIfAbsent(db, incident.id);
   return incident;
