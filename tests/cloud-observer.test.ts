@@ -7,6 +7,8 @@ import { runCloudObserver } from "../src/cloud-observer/worker";
 import { observerTablesOnly } from "../src/cloud-observer/repository";
 import { persistCapability } from "../src/cloud-observer/repository";
 import * as schema from "../src/db/schema";
+import { createAwsProvider } from "../src/cloud-observer/providers/aws";
+import { createGcpProvider } from "../src/cloud-observer/providers/gcp";
 import type { CloudProviderAdapter } from "../src/cloud-observer/types";
 
 function fakeDb() {
@@ -66,5 +68,39 @@ describe("cloud observer M0 boundaries", () => {
     }, new Date());
     const tables = (db as unknown as { tables: string[] }).tables;
     expect(tables.every(observerTablesOnly)).toBe(true);
+  });
+
+  it("normalizes supported AWS Lightsail and Cost Explorer results", async () => {
+    const send = vi.fn()
+      .mockResolvedValueOnce({ instances: [{ name: "neo-avo", arn: "arn:aws:lightsail:ap-southeast-1:1:Instance/x", location: { regionName: "ap-southeast-1" }, state: { name: "running" }, bundleId: "nano", blueprintId: "ubuntu" }] })
+      .mockResolvedValueOnce({ metricData: [{ average: 21, timestamp: new Date("2026-09-14T00:00:00Z") }] })
+      .mockResolvedValueOnce({ ResultsByTime: [{ Total: { UnblendedCost: { Amount: "12.5", Unit: "USD" }, NetUnblendedCost: { Amount: "10", Unit: "USD" } } }] })
+      .mockResolvedValueOnce({ ResultsByTime: [] });
+    const provider = createAwsProvider(loadEnv({ AWS_REGION: "ap-southeast-1", AWS_ACCOUNT_ID: "1" }), { lightsail: { send } as never, cost: { send } as never });
+    const infrastructure = await provider.collect("infrastructure", new Date("2026-09-14T00:00:00Z"));
+    const cost = await provider.collect("cost", new Date("2026-09-14T00:00:00Z"));
+    expect(infrastructure.resources?.[0].status).toBe("running");
+    expect(infrastructure.resources?.[0].cpuUtilization).toBe(21);
+    expect(cost.cost?.monthToDateGrossCost).toBe(12.5);
+    expect(cost.cost?.valueStatus.projectedMonthEnd).toBe("ESTIMATED");
+  });
+
+  it("normalizes supported GCP Compute results and keeps billing unknown", async () => {
+    const auth = { getClient: async () => ({ getAccessToken: async () => ({ token: "test-token" }) }) } as never;
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: { zones: { instances: [{ id: "123", name: "neo-avo", zone: "zones/asia-southeast2-a", status: "RUNNING", machineType: "e2-small" }] } } }), { status: 200 }));
+    const provider = createGcpProvider(loadEnv({ GCP_PROJECT_ID: "neo-avo" }), { auth, fetch: fetcher });
+    const infrastructure = await provider.collect("infrastructure", new Date());
+    const cost = await provider.collect("cost", new Date());
+    expect(infrastructure.resources?.[0].resourceType).toBe("compute_instance");
+    expect(infrastructure.resources?.[0].status).toBe("RUNNING");
+    expect(cost.status).toBe("UNAVAILABLE");
+    expect(cost.cost?.monthToDateGrossCost).toBeNull();
+  });
+
+  it("returns unknown credit values instead of fabricating a balance", async () => {
+    const aws = createAwsProvider(loadEnv({ AWS_REGION: "ap-southeast-1" }));
+    const result = await aws.collect("credits", new Date());
+    expect(result.credits?.[0].valueStatus).toBe("UNKNOWN");
+    expect(result.credits?.[0].remainingAmount).toBeNull();
   });
 });

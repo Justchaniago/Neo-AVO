@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 /** M0 keeps only the database connectivity seam; domain tables start in M1. */
 export const healthChecks = pgTable("health_checks", {
@@ -391,11 +391,11 @@ export const cloudCostSnapshots = pgTable("cloud_cost_snapshots", {
   provider: text("provider").notNull(),
   accountId: text("account_id").notNull(),
   currency: text("currency"),
-  monthToDateGrossCost: integer("month_to_date_gross_cost"),
-  creditsApplied: integer("credits_applied"),
-  monthToDateNetCost: integer("month_to_date_net_cost"),
-  dailyBurnRate: integer("daily_burn_rate"),
-  projectedMonthEnd: integer("projected_month_end"),
+  monthToDateGrossCost: numeric("month_to_date_gross_cost", { precision: 18, scale: 6, mode: "number" }),
+  creditsApplied: numeric("credits_applied", { precision: 18, scale: 6, mode: "number" }),
+  monthToDateNetCost: numeric("month_to_date_net_cost", { precision: 18, scale: 6, mode: "number" }),
+  dailyBurnRate: numeric("daily_burn_rate", { precision: 18, scale: 6, mode: "number" }),
+  projectedMonthEnd: numeric("projected_month_end", { precision: 18, scale: 6, mode: "number" }),
   valueStatus: jsonb("value_status").$type<Record<string, FinancialStatus>>().notNull().default({}),
   observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
   providerDataAsOf: timestamp("provider_data_as_of", { withTimezone: true }),

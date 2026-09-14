@@ -1,4 +1,4 @@
-import { and, desc, eq, lt } from "drizzle-orm";
+import { desc, lt } from "drizzle-orm";
 import type { createConfiguredDb } from "../db/client";
 import * as schema from "../db/schema";
 import type { Capability, CapabilityResult, CloudProvider } from "./types";
@@ -16,10 +16,11 @@ export async function persistCapability(db: Db, provider: CloudProvider, capabil
     set: { status: result.status, lastAttemptAt: observedAt, ...(success ? { lastSuccessAt: observedAt } : {}), providerDataAsOf: result.providerDataAsOf ?? null, safeError: result.error?.slice(0, 300) ?? null, updatedAt: observedAt },
   });
 
-  if (result.status !== "AVAILABLE") return;
   if (capability === "infrastructure" && result.resources?.length) {
     await db.insert(schema.cloudResourceSnapshots).values(result.resources.map((value) => ({ ...value, metadata: value.metadata })));
   }
+  // Explicit UNKNOWN/UNAVAILABLE payloads are retained; failures without a
+  // payload leave the last valid snapshot intact.
   if (capability === "cost" && result.cost) await db.insert(schema.cloudCostSnapshots).values(result.cost);
   if (capability === "credits" && result.credits?.length) await db.insert(schema.cloudCreditSnapshots).values(result.credits);
 }
