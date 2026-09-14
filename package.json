@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:integration": "RUN_POSTGRES_INTEGRATION=1 vitest run tests/integration",
     "worker": "tsx src/worker/index.ts",
+    "cloud-observer": "tsx src/cloud-observer/worker.ts",
     "vertex:smoke": "tsx scripts/vertex-smoke.ts",
     "production:check": "tsx scripts/check-production-env.ts",
     "command:mock": "tsx scripts/mock-command-project.ts",
