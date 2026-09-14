@@ -36,5 +36,5 @@ export type CapabilityResult = {
 
 export type CloudProviderAdapter = {
   provider: CloudProvider;
-  collect(capability: Capability, observedAt: Date): Promise<CapabilityResult>;
+  collect(capability: Capability, observedAt: Date, signal?: AbortSignal): Promise<CapabilityResult>;
 };
