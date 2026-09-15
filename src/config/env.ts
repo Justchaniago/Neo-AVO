@@ -19,6 +19,10 @@ const envSchema = z.object({
   AWS_REGION: z.string().min(1).optional(),
   AWS_ACCOUNT_ID: z.string().min(1).optional(),
   GCP_PROJECT_ID: z.string().min(1).optional(),
+  GCP_BILLING_EXPORT_PROJECT: z.string().min(1).optional(),
+  GCP_BILLING_EXPORT_DATASET: z.string().min(1).optional(),
+  GCP_BILLING_EXPORT_TABLE: z.string().min(1).optional(),
+  GCP_CREDIT_ALLOCATION: z.coerce.number().finite().nonnegative().optional(),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

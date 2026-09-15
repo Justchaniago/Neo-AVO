@@ -17,6 +17,7 @@ export type CloudCostSnapshot = {
   monthToDateGrossCost: number | null; creditsApplied: number | null;
   monthToDateNetCost: number | null; dailyBurnRate: number | null;
   projectedMonthEnd: number | null;
+  breakdown?: { services: Record<string, number>; projects: Record<string, number> };
   valueStatus: Record<string, FinancialStatus>; observedAt: Date;
   providerDataAsOf: Date | null; freshness: CapabilityStatus;
 };

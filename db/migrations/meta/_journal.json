@@ -120,6 +120,13 @@
       "when": 1789449039773,
       "tag": "0016_good_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789450436055,
+      "tag": "0017_brief_shooting_star",
+      "breakpoints": true
     }
   ]
 }

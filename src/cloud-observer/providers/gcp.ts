@@ -1,6 +1,7 @@
 import { GoogleAuth } from "google-auth-library";
 import type { AppEnv } from "../../config/env";
 import type { CapabilityResult, CloudProviderAdapter } from "../types";
+import { collectGcpBilling, type GcpBillingConfig } from "./gcp-billing";
 
 type GcpFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -9,7 +10,7 @@ export const GCP_READ_SCOPES = [
   "https://www.googleapis.com/auth/monitoring.read",
 ] as const;
 
-export function createGcpProvider(env: AppEnv, options: { fetch?: GcpFetch; auth?: GoogleAuth } = {}): CloudProviderAdapter {
+export function createGcpProvider(env: AppEnv, options: { fetch?: GcpFetch; auth?: GoogleAuth; billing?: GcpBillingConfig } = {}): CloudProviderAdapter {
   const projectId = env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
   if (!projectId) return unavailable("GCP_PROJECT_ID is not configured");
   const auth = options.auth ?? new GoogleAuth({ scopes: [...GCP_READ_SCOPES] });
@@ -19,7 +20,9 @@ export function createGcpProvider(env: AppEnv, options: { fetch?: GcpFetch; auth
     async collect(capability, observedAt, signal): Promise<CapabilityResult> {
       try {
         if (capability === "infrastructure") return await collectInfrastructure(projectId, auth, fetcher, observedAt, signal);
-        if (capability === "cost") return { status: "UNAVAILABLE", error: "GCP project cost requires a configured Cloud Billing export; M1 does not create BigQuery infrastructure", cost: unknownCost(projectId, observedAt) };
+        if (capability === "cost" && options.billing) return await collectGcpBilling(options.billing, "cost", observedAt, signal);
+        if (capability === "cost") return { status: "UNAVAILABLE", error: "GCP project cost requires a configured Cloud Billing export", cost: unknownCost(projectId, observedAt) };
+        if (capability === "credits" && options.billing) return await collectGcpBilling(options.billing, "credits", observedAt, signal);
         return { status: "UNAVAILABLE", error: "GCP promotional credit remaining is not exposed by the configured supported API", credits: [{ provider: "GCP", accountId: projectId, creditType: "promotional", currency: null, originalAmount: null, remainingAmount: null, estimatedRemainingAmount: null, expiration: null, valueStatus: "UNKNOWN", observedAt, providerDataAsOf: null, freshness: "UNAVAILABLE" }] };
       } catch (error) {
         return { status: /401|403|unauthorized|permission/i.test(safeError(error)) ? "UNAUTHORIZED" : "ERROR", error: safeError(error) };
