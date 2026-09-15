@@ -1,5 +1,6 @@
 import { GoogleAuth } from "google-auth-library";
 import type { AppEnv } from "../../config/env";
+import { createGcpWifAuth, type AwsCredentialsProvider, type GcpAuth } from "../gcp-wif";
 import type { CapabilityResult, CloudProviderAdapter } from "../types";
 import { collectGcpBilling, type GcpBillingConfig } from "./gcp-billing";
 
@@ -10,10 +11,12 @@ export const GCP_READ_SCOPES = [
   "https://www.googleapis.com/auth/monitoring.read",
 ] as const;
 
-export function createGcpProvider(env: AppEnv, options: { fetch?: GcpFetch; auth?: GoogleAuth; billing?: GcpBillingConfig } = {}): CloudProviderAdapter {
+export function createGcpProvider(env: AppEnv, options: { fetch?: GcpFetch; auth?: GcpAuth; billing?: GcpBillingConfig; wifCredentialsPath?: string; awsCredentials?: AwsCredentialsProvider } = {}): CloudProviderAdapter {
   const projectId = env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
   if (!projectId) return unavailable("GCP_PROJECT_ID is not configured");
-  const auth = options.auth ?? new GoogleAuth({ scopes: [...GCP_READ_SCOPES] });
+  const auth = options.auth ?? (options.wifCredentialsPath
+    ? createGcpWifAuth({ credentialsPath: options.wifCredentialsPath, scopes: GCP_READ_SCOPES, region: env.AWS_REGION, awsCredentials: options.awsCredentials })
+    : new GoogleAuth({ scopes: [...GCP_READ_SCOPES] }));
   const fetcher = options.fetch ?? fetch;
   return {
     provider: "GCP",
@@ -31,7 +34,7 @@ export function createGcpProvider(env: AppEnv, options: { fetch?: GcpFetch; auth
   };
 }
 
-async function collectInfrastructure(projectId: string, auth: GoogleAuth, fetcher: GcpFetch, observedAt: Date, signal?: AbortSignal): Promise<CapabilityResult> {
+async function collectInfrastructure(projectId: string, auth: GcpAuth, fetcher: GcpFetch, observedAt: Date, signal?: AbortSignal): Promise<CapabilityResult> {
   const client = await auth.getClient();
   const token = (await client.getAccessToken()).token;
   if (!token) throw new Error("GCP access token unavailable");

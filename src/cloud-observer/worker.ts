@@ -20,7 +20,7 @@ export async function runCloudObserver(options: { env?: ReturnType<typeof loadEn
     log("info", "cloud-observer", "disabled; no provider collection performed");
     return { enabled: false };
   }
-  const providers = options.providers ?? [createAwsProvider(env), createGcpProvider(env, { billing: gcpBillingConfig(env) })];
+  const providers = options.providers ?? [createAwsProvider(env), createGcpProvider(env, { billing: gcpBillingConfig(env), wifCredentialsPath: env.CLOUD_OBSERVER_GCP_WIF_CREDENTIALS })];
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let stopping = false;
   const stop = () => { stopping = true; };
