@@ -1,4 +1,5 @@
 import { GoogleAuth } from "google-auth-library";
+import type { GcpAuth } from "../gcp-wif";
 import { deriveMonthEndProjection } from "../finops";
 import type { CapabilityResult, CloudCostSnapshot, CloudCreditSnapshot, FinancialStatus } from "../types";
 
@@ -9,7 +10,7 @@ export type GcpBillingConfig = {
   dataset: string;
   table: string;
   creditAllocation?: number;
-  auth?: GoogleAuth;
+  auth?: GcpAuth;
   fetch?: (url: string, init?: RequestInit) => Promise<Response>;
   timeoutMs?: number;
 };
