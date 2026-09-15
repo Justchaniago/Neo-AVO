@@ -375,7 +375,7 @@ export const cloudResourceSnapshots = pgTable("cloud_resource_snapshots", {
   resourceType: text("resource_type").notNull(),
   region: text("region"),
   status: text("status").notNull(),
-  cpuUtilization: integer("cpu_utilization"),
+  cpuUtilization: numeric("cpu_utilization", { precision: 8, scale: 4, mode: "number" }),
   memoryUtilization: integer("memory_utilization"),
   diskUtilization: integer("disk_utilization"),
   networkInBytes: integer("network_in_bytes"),
