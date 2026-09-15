@@ -6,6 +6,7 @@ import { Icon } from "../icons";
 import { Badge, Facts, PageTitle } from "../primitives";
 import { getTelemetryFreshness } from "../model";
 import { ResourceLineChart } from "../resource-chart";
+import { CloudObserverSurface } from "../cloud-observer";
 
 export function MobileInfrastructure() {
   const [range, setRange] = useState<"1h" | "6h" | "24h" | "7d" | "30d">("24h");
@@ -40,6 +41,7 @@ export function MobileInfrastructure() {
         title="Host Telemetry"
         description="Live resource metrics, historical telemetry, and blast-radius context for shared-prod-01."
       />
+      <CloudObserverSurface mobile />
 
       {/* 01. Live Resource Health */}
       <section className="mobile-section">

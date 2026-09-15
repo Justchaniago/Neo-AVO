@@ -42,6 +42,7 @@ import { MobileIncidentDetail } from "./mobile/incident-detail";
 import { MobileInfrastructure } from "./mobile/infrastructure";
 import { MobileIntelligence } from "./mobile/intelligence";
 import { ResourceLineChart } from "./resource-chart";
+import { CloudObserverSurface } from "./cloud-observer";
 
 function Refresh() {
   const { refresh, checkedAt, refreshing, online, stale } = useDashboard();
@@ -1269,6 +1270,7 @@ export function InfrastructureScreen() {
           title="Host Infrastructure"
           description="Live telemetry, historical aggregation, dependency mapping, and blast-radius for shared-prod-01"
         />
+        <CloudObserverSurface />
         <div className="overview-bento">
           <Panel className="infra-half-panel" label="01 / Host Overview" title={infra?.host?.name || "shared-prod-01"}>
             <Facts
@@ -1422,5 +1424,4 @@ export function InfrastructureScreen() {
     </>
   );
 }
-
 

@@ -26,6 +26,77 @@
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --display: "Arial Black", "Helvetica Neue", Arial, sans-serif;
 }
+
+.cloud-observer-surface {
+  margin: 1rem 0 1.5rem;
+}
+
+.cloud-observer-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.cloud-observer-heading h2 {
+  margin: 0;
+}
+
+.cloud-observer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.cloud-observer-card {
+  min-width: 0;
+}
+
+.cloud-observer-status {
+  margin-bottom: 0.75rem;
+}
+
+.cloud-resource-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cloud-resource-row {
+  display: grid;
+  gap: 0.2rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+.cloud-resource-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.cloud-resource-row span,
+.cloud-observer-asof {
+  font-size: 0.78rem;
+}
+
+.cloud-service-breakdown {
+  margin-top: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.cloud-service-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  padding: 0.35rem 0;
+}
+
+@media (max-width: 760px) {
+  .cloud-observer-grid {
+    grid-template-columns: 1fr;
+  }
+}
 * {
   box-sizing: border-box;
 }
