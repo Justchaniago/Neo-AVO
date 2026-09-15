@@ -7,6 +7,12 @@ import { createGcpProvider } from "./providers/gcp";
 import { pruneCloudSnapshots } from "./repository";
 import type { Capability } from "./types";
 import type { CloudProviderAdapter } from "./types";
+import type { GcpBillingConfig } from "./providers/gcp-billing";
+
+function gcpBillingConfig(env: ReturnType<typeof loadEnv>): GcpBillingConfig | undefined {
+  if (!env.GCP_BILLING_EXPORT_PROJECT || !env.GCP_BILLING_EXPORT_DATASET || !env.GCP_BILLING_EXPORT_TABLE) return undefined;
+  return { billingProjectId: env.GCP_BILLING_EXPORT_PROJECT, dataset: env.GCP_BILLING_EXPORT_DATASET, table: env.GCP_BILLING_EXPORT_TABLE, creditAllocation: env.GCP_CREDIT_ALLOCATION };
+}
 
 export async function runCloudObserver(options: { env?: ReturnType<typeof loadEnv>; sleep?: (ms: number) => Promise<void>; providers?: CloudProviderAdapter[] } = {}) {
   const env = options.env ?? loadEnv();
@@ -14,7 +20,7 @@ export async function runCloudObserver(options: { env?: ReturnType<typeof loadEn
     log("info", "cloud-observer", "disabled; no provider collection performed");
     return { enabled: false };
   }
-  const providers = options.providers ?? [createAwsProvider(env), createGcpProvider(env)];
+  const providers = options.providers ?? [createAwsProvider(env), createGcpProvider(env, { billing: gcpBillingConfig(env) })];
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let stopping = false;
   const stop = () => { stopping = true; };

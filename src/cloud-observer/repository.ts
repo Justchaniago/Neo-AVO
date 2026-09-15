@@ -21,7 +21,7 @@ export async function persistCapability(db: Db, provider: CloudProvider, capabil
   }
   // Explicit UNKNOWN/UNAVAILABLE payloads are retained; failures without a
   // payload leave the last valid snapshot intact.
-  if (capability === "cost" && result.cost) await db.insert(schema.cloudCostSnapshots).values(result.cost);
+  if (capability === "cost" && result.cost) await db.insert(schema.cloudCostSnapshots).values({ ...result.cost, breakdown: result.cost.breakdown ?? { services: {}, projects: {} } });
   if (capability === "credits" && result.credits?.length) await db.insert(schema.cloudCreditSnapshots).values(result.credits);
 }
 
