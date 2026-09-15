@@ -1,0 +1,1 @@
+ALTER TABLE "cloud_resource_snapshots" ALTER COLUMN "cpu_utilization" SET DATA TYPE numeric(8, 4);

@@ -3,7 +3,7 @@ import pg from "pg";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 
 import { createDb } from "../../src/db/client";
-import { commands, events, incidentEvents, incidents, notifications, opsAnalyses, projectCredentials, projects, tasks } from "../../src/db/schema";
+import { cloudResourceSnapshots, commands, events, incidentEvents, incidents, notifications, opsAnalyses, projectCredentials, projects, tasks } from "../../src/db/schema";
 import { registerProject, rotateProjectCredential } from "../../src/projects/usecases";
 import { persistEventBatch } from "../../src/events/usecases";
 import { claimPendingEvent } from "../../src/worker/repository";
@@ -35,6 +35,18 @@ suite("real PostgreSQL M3/M4 integration", () => {
     await migrate(db, { migrationsFolder: "./db/migrations" });
     const registered = await registerProject(db, { slug: "project-a", name: "Project A", environment: "production", runtimeMode: "always_on", healthStrategy: "heartbeat", capabilities: [], criticality: "normal", staleAfterSeconds: 60, offlineAfterSeconds: 300 });
     projectId = registered.project.id;
+  });
+
+  it("round-trips fractional Cloud Observer CPU utilization", async () => {
+    const observedAt = new Date("2026-09-15T05:03:09.391Z");
+    await db.insert(cloudResourceSnapshots).values({
+      provider: "AWS", accountId: "527137870433", resourceId: "lightsail:test", resourceType: "lightsail_instance",
+      region: "ap-southeast-1", status: "running", cpuUtilization: 22.9078,
+      memoryUtilization: null, diskUtilization: null, networkInBytes: null, networkOutBytes: null,
+      observedAt, providerDataAsOf: observedAt, freshness: "AVAILABLE", metadata: { name: "test" },
+    });
+    const [snapshot] = await db.select().from(cloudResourceSnapshots);
+    expect(snapshot.cpuUtilization).toBeCloseTo(22.9078, 4);
   });
 
   afterAll(async () => { await pool.end(); });
