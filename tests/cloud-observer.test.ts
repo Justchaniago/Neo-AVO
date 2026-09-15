@@ -9,6 +9,7 @@ import { persistCapability } from "../src/cloud-observer/repository";
 import * as schema from "../src/db/schema";
 import { createAwsProvider } from "../src/cloud-observer/providers/aws";
 import { createGcpProvider } from "../src/cloud-observer/providers/gcp";
+import { getAwsCallerIdentity } from "../src/cloud-observer/aws-identity";
 import type { CloudProviderAdapter } from "../src/cloud-observer/types";
 
 function fakeDb() {
@@ -102,5 +103,16 @@ describe("cloud observer M0 boundaries", () => {
     const result = await aws.collect("credits", new Date());
     expect(result.credits?.[0].valueStatus).toBe("UNKNOWN");
     expect(result.credits?.[0].remainingAmount).toBeNull();
+  });
+
+  it("reads AWS identity through the SDK credential-chain client", async () => {
+    const send = vi.fn().mockResolvedValue({ Account: "527137870433", Arn: "arn:aws:iam::527137870433:role/neo-avo-cloud-observer", UserId: "AROATEST" });
+    await expect(getAwsCallerIdentity({ region: "ap-southeast-1", client: { send } as never })).resolves.toEqual({
+      account: "527137870433",
+      arn: "arn:aws:iam::527137870433:role/neo-avo-cloud-observer",
+      userId: "AROATEST",
+      region: "ap-southeast-1",
+    });
+    expect(send).toHaveBeenCalledOnce();
   });
 });
