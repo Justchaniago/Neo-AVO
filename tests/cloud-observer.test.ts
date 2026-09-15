@@ -8,7 +8,7 @@ import { observerTablesOnly } from "../src/cloud-observer/repository";
 import { persistCapability } from "../src/cloud-observer/repository";
 import * as schema from "../src/db/schema";
 import { createAwsProvider } from "../src/cloud-observer/providers/aws";
-import { createGcpProvider } from "../src/cloud-observer/providers/gcp";
+import { createGcpProvider, GCP_READ_SCOPES } from "../src/cloud-observer/providers/gcp";
 import { getAwsCallerIdentity } from "../src/cloud-observer/aws-identity";
 import type { CloudProviderAdapter } from "../src/cloud-observer/types";
 
@@ -96,6 +96,14 @@ describe("cloud observer M0 boundaries", () => {
     expect(infrastructure.resources?.[0].status).toBe("RUNNING");
     expect(cost.status).toBe("UNAVAILABLE");
     expect(cost.cost?.monthToDateGrossCost).toBeNull();
+  });
+
+  it("uses only provider-specific read scopes for GCP", () => {
+    expect(GCP_READ_SCOPES).toEqual([
+      "https://www.googleapis.com/auth/compute.readonly",
+      "https://www.googleapis.com/auth/monitoring.read",
+    ]);
+    expect(GCP_READ_SCOPES).not.toContain("https://www.googleapis.com/auth/cloud-platform.read-only");
   });
 
   it("returns unknown credit values instead of fabricating a balance", async () => {
