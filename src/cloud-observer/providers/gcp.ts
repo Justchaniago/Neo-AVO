@@ -4,10 +4,15 @@ import type { CapabilityResult, CloudProviderAdapter } from "../types";
 
 type GcpFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
+export const GCP_READ_SCOPES = [
+  "https://www.googleapis.com/auth/compute.readonly",
+  "https://www.googleapis.com/auth/monitoring.read",
+] as const;
+
 export function createGcpProvider(env: AppEnv, options: { fetch?: GcpFetch; auth?: GoogleAuth } = {}): CloudProviderAdapter {
   const projectId = env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
   if (!projectId) return unavailable("GCP_PROJECT_ID is not configured");
-  const auth = options.auth ?? new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform.read-only"] });
+  const auth = options.auth ?? new GoogleAuth({ scopes: [...GCP_READ_SCOPES] });
   const fetcher = options.fetch ?? fetch;
   return {
     provider: "GCP",
