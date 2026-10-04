@@ -144,8 +144,8 @@ export async function evaluateResourcePressure(db: NodePgDatabase<typeof schema>
     .limit(10);
 
   const highPressureCount = recentSnapshots.filter((s) => (s.cpuPercent ?? 0) >= 80 || (s.memoryPercent ?? 0) >= 80).length;
-  const isSustained = instantState !== "NORMAL" && highPressureCount >= 2;
-  const pressureState = instantState === "NORMAL" ? "NORMAL" : isSustained ? instantState : "WARNING";
+  const isSustained = highPressureCount >= 2 || (instantState !== "NORMAL" && highPressureCount >= 1);
+  const pressureState = instantState !== "NORMAL" ? instantState : highPressureCount >= 2 ? "WARNING" : "NORMAL";
 
   const services = await checkMonitoredServices();
   const topProcesses = instantState !== "NORMAL" ? await captureProcessEvidence() : undefined;
