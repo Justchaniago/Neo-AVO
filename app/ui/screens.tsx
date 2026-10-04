@@ -530,7 +530,19 @@ export function IncidentsScreen() {
         eyebrow="Operational attention / 04"
         title="Attention"
         description="Operational events requiring your attention"
-        action={<Refresh />}
+        action={
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <a
+              href={`/api/v1/dashboard/incidents/export${project ? `?projectId=${encodeURIComponent(project)}` : ""}`}
+              download
+              className="button button-small"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", textDecoration: "none" }}
+            >
+              <Icon name="arrow" /> Export JSON
+            </a>
+            <Refresh />
+          </div>
+        }
       />
       <div className="attention-toolbar">
         <div className="tabs" aria-label="Incident state">
