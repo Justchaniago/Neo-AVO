@@ -25,6 +25,8 @@ function formatMonthLabel(monthStr: string) {
 }
 
 const activeCommandStatuses = ["REQUESTED", "SENT", "ACKNOWLEDGED"];
+const getRecoverableDates = (data: { missingDates: string[]; partialDates: { date: string }[] }) =>
+  [...new Set([...data.missingDates, ...data.partialDates.map((item) => item.date)])].sort();
 
 function PixelProgressBar({ isRunning, action }: { isRunning: boolean; action: "AUDIT" | "RESOLVE" }) {
   const [progress, setProgress] = useState(0);
@@ -103,6 +105,8 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
   const isQraProject = detail.project.slug === "qra-system" || detail.project.capabilities.includes("qra.audit_missing_dates");
   const latestAuditCommand = detail.commands.find((c) => c.capability === "qra.audit_missing_dates");
   const latestResolveCommand = detail.commands.find((c) => c.capability === "qra.resolve_missing_dates");
+  const canAudit = detail.project.capabilities.includes("qra.audit_missing_dates");
+  const canResolve = detail.project.capabilities.includes("qra.resolve_missing_dates");
   const auditIsRunning = [latestAuditCommand, latestResolveCommand].some((command) => !!command && activeCommandStatuses.includes(command.status));
 
   useEffect(() => {
@@ -142,7 +146,7 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
     }
   }
 
-  async function handleResolve(storeName: string, dates: string[]) {
+  async function handleResolve(auditMonth: string, storeName: string, dates: string[]) {
     setResolvingStore(storeName);
     setError(null);
     try {
@@ -153,7 +157,7 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
           projectId: detail.project.id,
           environment: detail.project.environment,
           capability: "qra.resolve_missing_dates",
-          arguments: { month, store: storeName, dates },
+          arguments: { month: auditMonth, store: storeName, dates },
           validUntil: new Date(Date.now() + 30 * 60_000).toISOString(),
         }),
       });
@@ -178,11 +182,15 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
         </div>
         <button
           onClick={() => setOpen(true)}
-          disabled={submitting || auditIsRunning}
+          disabled={submitting || auditIsRunning || !canAudit}
         >
           Audit Missing Dates
         </button>
       </div>
+
+      <DailyReconcileResult events={detail.qraReconcileEvents ?? []} />
+
+      {!canAudit && <p style={{ color: "var(--coral)", fontSize: "13px" }}>QRA audit capability is not enabled for this project.</p>}
 
       {open && (
         <div className="modal-backdrop" style={{ border: "var(--line)", borderRadius: "var(--radius)", padding: "16px", background: "var(--canvas)", marginBottom: "16px" }}>
@@ -217,21 +225,81 @@ export function QraAuditControl({ detail }: { detail: ProjectDetail }) {
       )}
 
       {error && <p style={{ color: "var(--coral)", fontSize: "13px" }}>{error}</p>}
-      {latestAuditCommand && <AuditResultDisplay command={latestAuditCommand} resolveCommand={latestResolveCommand} onResolve={handleResolve} resolvingStore={resolvingStore} />}
+      {latestAuditCommand && <AuditResultDisplay command={latestAuditCommand} resolveCommand={latestResolveCommand} canResolve={canResolve} onResolve={handleResolve} resolvingStore={resolvingStore} />}
       {latestResolveCommand && <ResolveResultDisplay command={latestResolveCommand} />}
     </div>
+  );
+}
+
+function DailyReconcileResult({ events }: { events: NonNullable<ProjectDetail["qraReconcileEvents"]> }) {
+  const attempts = new Map<string, typeof events>();
+  for (const event of events) {
+    const commandId = String(event.data.commandId ?? event.eventId);
+    attempts.set(commandId, [...(attempts.get(commandId) ?? []), event]);
+  }
+  const latestAttempt = [...attempts.values()].sort((a, b) => {
+    const aEvent = a.find((event) => event.type === "qra.reconcile.started") ?? a[0];
+    const bEvent = b.find((event) => event.type === "qra.reconcile.started") ?? b[0];
+    return Date.parse(String(bEvent.data.date ?? bEvent.occurredAt)) - Date.parse(String(aEvent.data.date ?? aEvent.occurredAt))
+      || Date.parse(bEvent.occurredAt) - Date.parse(aEvent.occurredAt)
+      || bEvent.eventId.localeCompare(aEvent.eventId);
+  })[0] ?? [];
+  const latest = latestAttempt.find((event) => event.type === "qra.reconcile.completed" || event.type === "qra.reconcile.failed")
+    ?? latestAttempt.find((event) => event.type === "qra.reconcile.started");
+  const storeResults = latest?.data.stores as Record<string, { status: string; reason: string; metrics?: string[] }> | undefined;
+
+  return (
+    <section aria-label="Daily QRA reconcile" style={{ border: "1px solid var(--ink)", borderRadius: "var(--radius)", padding: "14px", marginBottom: "16px", background: "#f6fbfa" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+        <div>
+          <span className="eyebrow" style={{ margin: 0 }}>SCHEDULED · READ ONLY · 00:00 WIB</span>
+          <h4 style={{ margin: "4px 0" }}>Daily Reconcile</h4>
+          <p className="muted" style={{ margin: 0, fontSize: "12px" }}>Checks yesterday’s QRA receipt against the Sheet. It does not extract, write, or repair data.</p>
+        </div>
+        {latest ? <Badge value={latest.type === "qra.reconcile.started" ? "RUNNING" : latest.type === "qra.reconcile.failed" ? "EXECUTION FAILED" : String(latest.data.outcome ?? "RESULT RECEIVED")} /> : <Badge value="AWAITING TELEMETRY" />}
+      </div>
+      {!latest && <p className="muted" style={{ margin: "12px 0 0", fontSize: "12px" }}>No reconcile result has been received by Neo AVO yet. This view does not trigger a reconcile.</p>}
+      {latest && (
+        <div style={{ marginTop: "12px" }}>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", fontSize: "12px", marginBottom: "8px" }}>
+            <span>Business date: <strong>{String(latest.data.date ?? "Unknown")}</strong></span>
+            <span>Operation: <strong>{String(latest.data.status ?? "Unknown")}</strong></span>
+            <span>Mutation: <strong>{String(latest.data.mutation ?? "Unknown")}</strong></span>
+            <span>Received: <Time value={latest.receivedAt} /></span>
+            {latest.type === "qra.reconcile.started" && <span>Started: <Time value={latest.occurredAt} /></span>}
+          </div>
+          {storeResults && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "8px" }}>
+            {(["PMS", "TP6"] as const).map((storeName) => {
+              const result = storeResults[storeName];
+              if (!result) return null;
+              const good = result.status === "VERIFIED";
+              const tone = good ? "var(--secondary)" : result.status === "VERIFIED_PARTIAL" ? "var(--orange)" : "var(--coral)";
+              return <div key={storeName} style={{ background: "white", border: "1px solid #ddd", borderRadius: "4px", padding: "9px", fontSize: "12px" }}>
+                <strong>{storeName}</strong><div style={{ color: tone, fontWeight: "bold", marginTop: "3px" }}>{result.status}</div>
+                <div className="muted" style={{ marginTop: "3px" }}>{result.reason}</div>
+                {!!result.metrics?.length && <div style={{ marginTop: "3px" }}>Metrics: {result.metrics.join(", ")}</div>}
+              </div>;
+            })}
+          </div>}
+          {latest.type === "qra.reconcile.started" && <p className="muted" style={{ fontSize: "12px", margin: "8px 0 0" }}>Latest attempt is in progress; waiting for its terminal event.</p>}
+          {latest.data.outcome !== "VERIFIED" && latest.type !== "qra.reconcile.failed" && <p style={{ color: "var(--orange)", fontSize: "12px", margin: "8px 0 0" }}>Reconcile completed and reported a data/check finding. Review it with Monthly Completeness Audit; recovery remains an explicit separate action.</p>}
+        </div>
+      )}
+    </section>
   );
 }
 
 function AuditResultDisplay({
   command,
   resolveCommand,
+  canResolve,
   onResolve,
   resolvingStore,
 }: {
   command: NonNullable<ProjectDetail["commands"]>[number];
   resolveCommand?: NonNullable<ProjectDetail["commands"]>[number];
-  onResolve: (store: string, dates: string[]) => void;
+  canResolve: boolean;
+  onResolve: (month: string, store: string, dates: string[]) => void;
   resolvingStore: string | null;
 }) {
   const isRunning = command.status === "REQUESTED" || command.status === "SENT" || command.status === "ACKNOWLEDGED";
@@ -309,15 +377,20 @@ function AuditResultDisplay({
                 {storeData.missingDates.length === 0 && storeData.partialDates.length === 0 && (
                   <div style={{ fontSize: "12px", color: "var(--secondary)" }}>No missing or partial dates.</div>
                 )}
-                {storeData.missingDates.length > 0 && (
+                {(storeData.missingDates.length > 0 || storeData.partialDates.length > 0) && (
                   <button
                     type="button"
-                    onClick={() => onResolve(storeName, storeData.missingDates)}
-                    disabled={!!resolvingStore || (resolveCommand != null && activeCommandStatuses.includes(resolveCommand.status))}
+                    onClick={() => onResolve(String(command.arguments?.month || ""), storeName, getRecoverableDates(storeData))}
+                    disabled={!canResolve || !!resolvingStore || (resolveCommand != null && activeCommandStatuses.includes(resolveCommand.status))}
                     style={{ marginTop: "10px", fontSize: "12px" }}
                   >
-                    {resolvingStore === storeName ? "Initiating..." : `Resolve ${storeData.missingDates.length} missing date${storeData.missingDates.length === 1 ? "" : "s"}`}
+                    {resolvingStore === storeName
+                      ? "Initiating..."
+                      : `Resolve ${getRecoverableDates(storeData).length} missing/partial date${getRecoverableDates(storeData).length === 1 ? "" : "s"}`}
                   </button>
+                )}
+                {!canResolve && (storeData.missingDates.length > 0 || storeData.partialDates.length > 0) && (
+                  <div style={{ color: "var(--coral)", fontSize: "11px", marginTop: "8px" }}>QRA recovery capability is not enabled.</div>
                 )}
               </div>
             ))}
@@ -345,6 +418,7 @@ function ResolveResultDisplay({
     dates?: { date: string; status: string; reason?: string; runId?: string }[];
     completed?: number;
     skipped?: number;
+    partial?: number;
     failed?: number;
     conflicts?: number;
     mutation?: string;
@@ -397,6 +471,7 @@ function ResolveResultDisplay({
           <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", fontSize: "12px", color: "var(--secondary)", borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "10px" }}>
             <span>Completed: {result.completed ?? 0}</span>
             <span>Skipped: {result.skipped ?? 0}</span>
+            <span>Still partial: {result.partial ?? 0}</span>
             <span>Failed: {result.failed ?? 0}</span>
             <span>Conflicts: {result.conflicts ?? 0}</span>
             <span>Mutation: {result.mutation || "NO_OVERWRITE"}</span>

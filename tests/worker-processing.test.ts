@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ findTask: vi.fn(), findProjectById: vi.fn(), markEventFailed: vi.fn(), markEventProcessed: vi.fn(), recordIncidentForEvent: vi.fn(), resolveIncidentForEvent: vi.fn(), updateProject: vi.fn(), upsertTask: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findTask: vi.fn(), findProjectById: vi.fn(), markEventFailed: vi.fn(), markEventProcessed: vi.fn(), recordIncidentForEvent: vi.fn(), resolveIncidentForEvent: vi.fn(), recoverExpectedExecutionForEvent: vi.fn(), updateProject: vi.fn(), upsertTask: vi.fn() }));
 vi.mock("../src/worker/repository", () => mocks);
 vi.mock("../src/projects/repository", () => ({ findProjectById: mocks.findProjectById, updateProject: mocks.updateProject }));
 vi.mock("../src/incidents/usecases", () => ({ recordIncidentForEvent: mocks.recordIncidentForEvent, resolveIncidentForEvent: mocks.resolveIncidentForEvent }));
+vi.mock("../src/ops/expected-executions", () => ({ recoverExpectedExecutionForEvent: mocks.recoverExpectedExecutionForEvent }));
 
 import { processClaimedEvent } from "../src/worker/processor";
 
@@ -26,7 +27,18 @@ describe("worker processing", () => {
     expect(result.status).toBe("processed");
     expect(mocks.upsertTask).toHaveBeenCalledOnce();
     expect(mocks.markEventProcessed).toHaveBeenCalledOnce();
+    expect(mocks.recoverExpectedExecutionForEvent).toHaveBeenCalledOnce();
+    expect(mocks.recoverExpectedExecutionForEvent.mock.invocationCallOrder[0]).toBeLessThan(mocks.markEventProcessed.mock.invocationCallOrder[0]);
     expect(mocks.markEventFailed).not.toHaveBeenCalled();
+  });
+
+  it("retries the event when expected-execution recovery fails inside the transaction", async () => {
+    mocks.recoverExpectedExecutionForEvent.mockRejectedValueOnce(new Error("recovery write failed"));
+    mocks.markEventFailed.mockResolvedValue({ id: "raw-1" });
+    const result = await processClaimedEvent(transactionalDb as never, event());
+    expect(result.status).toBe("retryable_failure");
+    expect(mocks.markEventProcessed).not.toHaveBeenCalled();
+    expect(mocks.markEventFailed).toHaveBeenCalledOnce();
   });
 
   it("marks a processing failure for retry and quarantines at the bound", async () => {

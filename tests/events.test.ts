@@ -69,4 +69,27 @@ describe("durable event ingestion contract", () => {
       expect(validateEventBatch({ events: [{ ...validEvent, type, data }] }, project).ok).toBe(true);
     }
   });
+
+  it("validates structured read-only QRA reconcile outcomes without accepting raw values", () => {
+    const data = {
+      commandId: "qra-reconcile:2026-10-06",
+      date: "2026-10-06",
+      store: "ALL",
+      status: "COMPLETED",
+      outcome: "GAPS_FOUND",
+      mutation: "NONE",
+      reason: "GAPS_FOUND",
+      completed: 1,
+      skipped: 1,
+      conflicts: 0,
+      failed: 0,
+      stores: {
+        PMS: { status: "VERIFIED", reason: "RECEIPT_AND_SHEET_MATCH" },
+        TP6: { status: "VERIFIED_PARTIAL", reason: "SOURCE_INCOMPLETE_METRICS_REMAIN_UNKNOWN", metrics: ["adt"] },
+      },
+    };
+    expect(validateEventBatch({ events: [{ ...validEvent, type: "qra.reconcile.completed", eventId: "qra-reconcile:2026-10-06:completed", data }] }, project).ok).toBe(true);
+    expect(validateEventBatch({ events: [{ ...validEvent, type: "qra.reconcile.completed", data: { ...data, stores: { ...data.stores, PMS: { ...data.stores.PMS, salesValue: 100 } } } }] }, project)).toMatchObject({ ok: false, kind: "invalid_event_data" });
+    expect(validateEventBatch({ events: [{ ...validEvent, type: "qra.reconcile.completed", data: { ...data, outcome: "VERIFIED", stores: { PMS: data.stores.PMS } } }] }, project)).toMatchObject({ ok: false, kind: "invalid_event_data" });
+  });
 });

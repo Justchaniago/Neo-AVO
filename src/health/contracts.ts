@@ -55,8 +55,11 @@ export function evaluateBusinessProof(
   }
 
   if (projectSlug === "qra-system") {
+    const resolvedDateCount = typeof data.completed === "number" ? data.completed : 0;
+    const failedDateCount = typeof data.failed === "number" ? data.failed : 0;
+    const partialDateCount = typeof data.partial === "number" ? data.partial : 0;
     const isSuccess =
-      event.type === "qra.resolve_missing_dates.completed" ||
+      (event.type === "qra.resolve_missing_dates.completed" && resolvedDateCount > 0 && failedDateCount === 0 && partialDateCount === 0) ||
       (event.type === "task.completed" && data.status === "COMPLETED");
     const isFailure =
       event.type === "task.failed" ||

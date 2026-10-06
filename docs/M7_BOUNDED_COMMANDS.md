@@ -18,4 +18,9 @@ The private single-operator deployment assumption applies to command creation (`
 
 ## Expiration and independence
 
-Expired commands are never returned by PULL or attempted by PUSH. External projects must treat `commandId` as their idempotency key and must not execute expired commands. If Neo AVO or a project endpoint is unavailable, the project’s core operation remains independent and command state remains durable for bounded retry or operator inspection.
+Expired commands are never returned by PULL or attempted by PUSH. External projects must treat `commandId` as their idempotency key and must not execute expired commands. A result may arrive after `validUntil` only when the command was acknowledged while still valid; this records the outcome of already accepted work and prevents a long-running command from remaining indefinitely `ACKNOWLEDGED`. Unacknowledged expired commands cannot report successful execution. If Neo AVO or a project endpoint is unavailable, the project’s core operation remains independent and command state remains durable for bounded retry or operator inspection.
+# QRA operator workflows
+
+Neo AVO observes QRA's scheduled same-day executions and daily receipt-to-Sheet reconcile. The daily reconcile is read-only and is never initiated from this control panel. It reports an operation state separately from the data outcome; a completed check with gaps is not represented as sales success.
+
+The `qra.audit_missing_dates` action is a monthly completeness audit. `qra.resolve_missing_dates` is explicit recovery/backfill from selected missing or partial dates and remains guarded by QRA's fresh preflight. Neither operation is the scheduled daily reconcile.

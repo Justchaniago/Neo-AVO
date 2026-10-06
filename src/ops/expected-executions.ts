@@ -1,9 +1,11 @@
-import { and, eq, gte, isNull, lte } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "../db/schema";
 import { updateProject } from "../projects/repository";
+import { findOpenIncidentByKey, resolveIncident } from "../incidents/repository";
 
 type Db = NodePgDatabase<typeof schema>;
+type QueryDb = Pick<Db, "select" | "insert" | "update">;
 
 function zoneParts(date: Date, timezone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
@@ -25,6 +27,17 @@ export function expectedAtForDay(now: Date, timezone: string, schedule: string) 
   return candidate;
 }
 
+/** Maps an event to the schedule occurrence on its local calendar day. */
+export function expectedAtForEvent(eventAt: Date, timezone: string, schedule: string) {
+  const expectedAt = expectedAtForDay(eventAt, timezone, schedule);
+  return expectedAt && expectedAt.getTime() <= eventAt.getTime() ? expectedAt : null;
+}
+
+/** Do not create missed occurrences for a schedule before it was last configured. */
+export function contractEffectiveAt(contract: { createdAt: Date; updatedAt: Date }, expectedAt: Date) {
+  return expectedAt.getTime() >= contract.updatedAt.getTime();
+}
+
 function matchesContractMetadata(data: unknown, metadata: unknown) {
   const match = metadata && typeof metadata === "object" && "match" in metadata && (metadata as { match?: unknown }).match && typeof (metadata as { match?: unknown }).match === "object" ? (metadata as { match: Record<string, unknown> }).match : null;
   if (!match) return true;
@@ -38,7 +51,7 @@ export async function evaluateExpectedExecutions(db: Db, now = new Date()) {
   await db.transaction(async (tx) => {
     for (const contract of contracts) {
       const expectedAt = expectedAtForDay(now, contract.timezone, contract.schedule);
-      if (!expectedAt || now.getTime() <= expectedAt.getTime() + contract.gracePeriodSeconds * 1000) continue;
+      if (!expectedAt || !contractEffectiveAt(contract, expectedAt) || now.getTime() <= expectedAt.getTime() + contract.gracePeriodSeconds * 1000) continue;
       const [existing] = await tx.select().from(schema.expectedExecutionOccurrences).where(and(eq(schema.expectedExecutionOccurrences.contractId, contract.id), eq(schema.expectedExecutionOccurrences.expectedAt, expectedAt))).limit(1);
       if (existing) continue;
       const [project] = await tx.select().from(schema.projects).where(eq(schema.projects.id, contract.projectId)).limit(1);
@@ -57,15 +70,32 @@ export async function evaluateExpectedExecutions(db: Db, now = new Date()) {
 }
 
 /** Completes previously missed contract occurrences when project-owned telemetry proves the effect. */
-export async function recoverExpectedExecutionForEvent(db: Db, event: typeof schema.events.$inferSelect) {
+export async function recoverExpectedExecutionForEvent(db: QueryDb, event: typeof schema.events.$inferSelect) {
   const contracts = await db.select().from(schema.expectedExecutionContracts).where(and(eq(schema.expectedExecutionContracts.projectId, event.projectId), eq(schema.expectedExecutionContracts.expectedEventType, event.type), eq(schema.expectedExecutionContracts.enabled, "true"))).limit(20);
   let recovered = 0;
   for (const contract of contracts) {
-    const [occurrence] = await db.select().from(schema.expectedExecutionOccurrences).where(and(eq(schema.expectedExecutionOccurrences.contractId, contract.id), eq(schema.expectedExecutionOccurrences.status, "MISSED"), isNull(schema.expectedExecutionOccurrences.completedAt))).orderBy(schema.expectedExecutionOccurrences.expectedAt).limit(1);
-    if (!occurrence || event.occurredAt < occurrence.expectedAt || !matchesContractMetadata(event.data, contract.metadata)) continue;
-    await db.update(schema.expectedExecutionOccurrences).set({ status: "RECOVERED", completedAt: event.occurredAt, sourceEventId: event.id }).where(eq(schema.expectedExecutionOccurrences.id, occurrence.id));
+    const expectedAt = expectedAtForEvent(event.occurredAt, contract.timezone, contract.schedule);
+    if (!expectedAt || !matchesContractMetadata(event.data, contract.metadata)) continue;
+    const [occurrence] = await db.select().from(schema.expectedExecutionOccurrences).where(and(
+      eq(schema.expectedExecutionOccurrences.contractId, contract.id),
+      eq(schema.expectedExecutionOccurrences.expectedAt, expectedAt),
+      eq(schema.expectedExecutionOccurrences.status, "MISSED"),
+    )).limit(1);
+    if (!occurrence) continue;
+    const [recoveredOccurrence] = await db.update(schema.expectedExecutionOccurrences)
+      .set({ status: "RECOVERED", completedAt: event.occurredAt, sourceEventId: event.id })
+      .where(and(eq(schema.expectedExecutionOccurrences.id, occurrence.id), eq(schema.expectedExecutionOccurrences.status, "MISSED")))
+      .returning({ id: schema.expectedExecutionOccurrences.id });
+    if (!recoveredOccurrence) continue;
     const [project] = await db.select().from(schema.projects).where(eq(schema.projects.id, event.projectId)).limit(1);
-    if (project) await updateProject(db, project.id, { businessHealth: "HEALTHY" });
+    if (project) {
+      const dedupKey = `expected:${contract.id}:${occurrence.expectedAt.toISOString()}`;
+      const incident = await findOpenIncidentByKey(db, project.id, project.environment, dedupKey);
+      if (incident) await resolveIncident(db, incident.id, event.id, `Recovered by expected event ${event.type}`, event.occurredAt);
+      if (!(project.slug === "qra-system" && event.type.startsWith("qra.reconcile."))) {
+        await updateProject(db, project.id, { businessHealth: "HEALTHY" });
+      }
+    }
     recovered += 1;
   }
   return recovered;

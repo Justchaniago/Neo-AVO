@@ -29,7 +29,16 @@ export async function getProjectDetail(db: Db, projectId: string) {
   const project = await findProjectById(db, projectId);
   if (!project) return null;
   const projectTasks = await db.select().from(tasks).where(and(eq(tasks.projectId, projectId), eq(tasks.environment, project.environment))).orderBy(desc(tasks.lastEventAt)).limit(50);
-  const recentEvents = await db.select().from(events).where(and(eq(events.projectId, projectId), isNull(events.quarantinedAt))).orderBy(desc(events.receivedAt)).limit(50);
+  const recentEvents = await db.select().from(events).where(and(eq(events.projectId, projectId), eq(events.environment, project.environment), isNull(events.quarantinedAt))).orderBy(desc(events.receivedAt)).limit(50);
+  const qraReconcileRows = project.slug === "qra-system"
+    ? await db.select().from(events).where(and(eq(events.projectId, projectId), eq(events.environment, project.environment), eq(events.type, "qra.reconcile.completed"), isNull(events.quarantinedAt))).orderBy(desc(events.occurredAt)).limit(30)
+    : [];
+  const qraReconcileFailures = project.slug === "qra-system"
+    ? await db.select().from(events).where(and(eq(events.projectId, projectId), eq(events.environment, project.environment), eq(events.type, "qra.reconcile.failed"), isNull(events.quarantinedAt))).orderBy(desc(events.occurredAt)).limit(30)
+    : [];
+  const qraReconcileStarts = project.slug === "qra-system"
+    ? await db.select().from(events).where(and(eq(events.projectId, projectId), eq(events.environment, project.environment), eq(events.type, "qra.reconcile.started"), isNull(events.quarantinedAt))).orderBy(desc(events.occurredAt)).limit(30)
+    : [];
   const recentCommands = await db.select().from(commands).where(and(eq(commands.projectId, projectId), eq(commands.environment, project.environment))).orderBy(desc(commands.requestedAt)).limit(50);
   const activeIncidents = await db.select().from(incidents).where(and(eq(incidents.projectId, projectId), eq(incidents.environment, project.environment))).orderBy(desc(incidents.lastSeenAt)).limit(20);
   const contracts = await db.select().from(expectedExecutionContracts).where(eq(expectedExecutionContracts.projectId, projectId)).limit(50);
@@ -39,5 +48,12 @@ export async function getProjectDetail(db: Db, projectId: string) {
     const data = event.data && typeof event.data === "object" ? event.data as Record<string, unknown> : {};
     return { id: event.id, eventId: event.eventId, type: event.type, occurredAt: event.occurredAt, receivedAt: event.receivedAt, sequence: event.sequence, runId: typeof data.runId === "string" ? data.runId : null, store: typeof data.store === "string" ? data.store : null, domain: typeof data.domain === "string" ? data.domain : null, status: typeof data.status === "string" ? data.status : null, severity: typeof data.severity === "string" ? data.severity : null };
   });
-  return { project: (() => { const { commandAuthCiphertext: _c, commandAuthIv: _i, commandAuthTag: _t, ...safe } = project; return safe; })(), tasks: projectTasks, recentEvents: activity, incidents: activeIncidents, expectedExecutions: contracts, dependencies, changes, recoveryEvidence: await db.select().from(recoveryEvidence).where(eq(recoveryEvidence.incidentId, activeIncidents[0]?.id ?? "00000000-0000-0000-0000-000000000000")).limit(20), timeline: await getProjectTimeline(db, projectId, { limit: 100 }), commands: recentCommands.map((c) => ({ id: c.id, commandId: c.commandId, capability: c.capability, arguments: c.arguments as Record<string, unknown> | null, status: c.status, requestedAt: c.requestedAt.toISOString(), result: c.result as Record<string, unknown> | null, failureReason: c.failureReason, rejectionReason: c.rejectionReason })) };
+  const reconcileEvents = [...qraReconcileRows, ...qraReconcileFailures, ...qraReconcileStarts].map((event) => ({
+    eventId: event.eventId,
+    type: event.type,
+    occurredAt: event.occurredAt.toISOString(),
+    receivedAt: event.receivedAt.toISOString(),
+    data: event.data as Record<string, unknown>,
+  }));
+  return { project: (() => { const { commandAuthCiphertext: _c, commandAuthIv: _i, commandAuthTag: _t, ...safe } = project; return safe; })(), tasks: projectTasks, recentEvents: activity, qraReconcileEvents: reconcileEvents, incidents: activeIncidents, expectedExecutions: contracts, dependencies, changes, recoveryEvidence: await db.select().from(recoveryEvidence).where(eq(recoveryEvidence.incidentId, activeIncidents[0]?.id ?? "00000000-0000-0000-0000-000000000000")).limit(20), timeline: await getProjectTimeline(db, projectId, { limit: 100 }), commands: recentCommands.map((c) => ({ id: c.id, commandId: c.commandId, capability: c.capability, arguments: c.arguments as Record<string, unknown> | null, status: c.status, requestedAt: c.requestedAt.toISOString(), result: c.result as Record<string, unknown> | null, failureReason: c.failureReason, rejectionReason: c.rejectionReason })) };
 }

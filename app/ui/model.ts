@@ -40,6 +40,7 @@ export type ScopedActivity = Activity & { project: Project };
 export type ProjectDetail = {
   project: Project;
   recentEvents: Activity[];
+  qraReconcileEvents?: { eventId: string; type: string; occurredAt: string; receivedAt: string; data: Record<string, unknown> }[];
   tasks: {
     id: string;
     externalTaskId: string;

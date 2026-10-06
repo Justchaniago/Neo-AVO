@@ -30,11 +30,27 @@ describe("bounded commands", () => {
     await expect(recordCommandResult({} as never, "cmd_1", "p", "prod", { status: "COMPLETED", result: { alreadyProcessed: true } })).resolves.toEqual({ status: "COMPLETED" });
     expect(mocks.insert).not.toHaveBeenCalledWith(expect.objectContaining({ capability: "deployment.restart" }));
   });
+  it("accepts a result after TTL only when the command was acknowledged before expiry", async () => {
+    const validUntil = new Date(Date.now() - 60_000);
+    mocks.find.mockResolvedValue({
+      commandId: "cmd_1", projectId: "p", environment: "prod", status: "ACKNOWLEDGED",
+      validUntil, acknowledgedAt: new Date(validUntil.getTime() - 60_000),
+    });
+    mocks.transition.mockResolvedValue({ status: "COMPLETED" });
+    await expect(recordCommandResult({} as never, "cmd_1", "p", "prod", { status: "COMPLETED", result: { completed: 6 } })).resolves.toEqual({ status: "COMPLETED" });
+
+    mocks.find.mockResolvedValue({
+      commandId: "cmd_2", projectId: "p", environment: "prod", status: "SENT",
+      validUntil, acknowledgedAt: null,
+    });
+    await expect(recordCommandResult({} as never, "cmd_2", "p", "prod", { status: "COMPLETED" })).rejects.toThrow("command_expired");
+  });
 
   it("validates qra.audit_missing_dates schema and rejects invalid parameters", () => {
     expect(validateCapability("qra.audit_missing_dates", { month: "2026-09", store: "ALL" }, ["qra.audit_missing_dates"]).ok).toBe(true);
     expect(validateCapability("qra.audit_missing_dates", { month: "2026-09", store: "PMS" }, ["qra.audit_missing_dates"]).ok).toBe(true);
     expect(validateCapability("qra.audit_missing_dates", { month: "invalid-month", store: "ALL" }, ["qra.audit_missing_dates"]).ok).toBe(false);
+    expect(validateCapability("qra.audit_missing_dates", { month: "2026-13", store: "ALL" }, ["qra.audit_missing_dates"]).ok).toBe(false);
     expect(validateCapability("qra.audit_missing_dates", { month: "2026-09", store: "INVALID" }, ["qra.audit_missing_dates"]).ok).toBe(false);
     expect(validateCapability("qra.audit_missing_dates", { month: "2026-09", store: "ALL", extraSql: "DROP TABLE" }, ["qra.audit_missing_dates"]).ok).toBe(false);
   });
@@ -44,6 +60,7 @@ describe("bounded commands", () => {
     expect(validateCapability("qra.resolve_missing_dates", { month: "2026-09", store: "PMS", dates: ["2026-08-31"] }, ["qra.resolve_missing_dates"]).ok).toBe(false);
     expect(validateCapability("qra.resolve_missing_dates", { month: "2026-09", store: "PMS", dates: ["2026-09-03", "2026-09-03"] }, ["qra.resolve_missing_dates"]).ok).toBe(false);
     expect(validateCapability("qra.resolve_missing_dates", { month: "2026-09", store: "ALL", dates: ["2026-09-03"] }, ["qra.resolve_missing_dates"]).ok).toBe(false);
+    expect(validateCapability("qra.resolve_missing_dates", { month: "2026-02", store: "PMS", dates: ["2026-02-30"] }, ["qra.resolve_missing_dates"]).ok).toBe(false);
   });
 
   it("validates briefing.regenerate schema and rejects invalid parameters", () => {

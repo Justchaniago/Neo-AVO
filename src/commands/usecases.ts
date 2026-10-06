@@ -27,7 +27,8 @@ export async function acknowledgeCommand(db: Db, commandId: string, projectId: s
 export async function recordCommandResult(db: Db, commandId: string, projectId: string, environment: string, input: { status: "COMPLETED" | "FAILED" | "REJECTED"; result?: Record<string, unknown>; reason?: string }) {
   const current = await findCommand(db, commandId);
   if (!current || current.projectId !== projectId || current.environment !== environment) throw new Error("command_not_found");
-  if (current.validUntil <= new Date()) throw new Error("command_expired");
+  const wasAcceptedBeforeExpiry = current.status === "ACKNOWLEDGED" && current.acknowledgedAt !== null && current.acknowledgedAt <= current.validUntil;
+  if (current.validUntil <= new Date() && !wasAcceptedBeforeExpiry) throw new Error("command_expired");
   if (!canTransition(current.status, input.status)) throw new Error("invalid_command_transition");
   return transitionCommand(db, commandId, projectId, environment, current.status, input.status, { result: input.result ?? null, resultAt: new Date(), failureReason: input.status === "FAILED" ? input.reason ?? "external_project_failed" : null, rejectionReason: input.status === "REJECTED" ? input.reason ?? "external_project_rejected" : null });
 }

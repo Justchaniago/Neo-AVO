@@ -30,9 +30,33 @@ const qraCommandData = z.object({
   reason: z.string().trim().max(500).optional(),
   completed: z.number().int().nonnegative().optional(),
   skipped: z.number().int().nonnegative().optional(),
+  partial: z.number().int().nonnegative().optional(),
   conflicts: z.number().int().nonnegative().optional(),
   failed: z.number().int().nonnegative().optional(),
 }).strict();
+
+const qraReconcileStore = z.object({
+  status: z.enum(["VERIFIED", "VERIFIED_PARTIAL", "MISSING_RUN", "RUN_FAILED", "RUN_IDENTITY_MISMATCH", "UNVERIFIED_RECEIPT", "WRITE_UNCONFIRMED", "SHEET_INCOMPLETE", "RESULT_MISMATCH", "CHECK_UNAVAILABLE"]),
+  reason: z.enum(["RECEIPT_AND_SHEET_MATCH", "SOURCE_INCOMPLETE_METRICS_REMAIN_UNKNOWN", "QRA_PRIMARY_RUN_NOT_FOUND", "QRA_PRIMARY_RUN_FAILED", "RECEIPT_IDENTITY_MISMATCH", "SOURCE_PROOF_MISSING", "SHEET_WRITE_NOT_CONFIRMED", "VERIFIED_METRIC_MISSING_FROM_SHEET", "RECEIPT_SHEET_VALUE_MISMATCH", "SHEET_READ_FAILED", "SHEET_TAB_NOT_FOUND", "SHEET_NOT_CONFIGURED"]),
+  metrics: z.array(z.enum(["sales", "adt", "qty_cup_sold", "offline_trx", "online_trx"])).max(5).optional(),
+}).strict();
+const qraReconcileData = z.object({
+  commandId: z.string().trim().min(1).max(200),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  store: z.literal("ALL"),
+  status: z.enum(["STARTED", "COMPLETED", "FAILED"]),
+  outcome: z.enum(["VERIFIED", "GAPS_FOUND", "CHECK_UNAVAILABLE"]).optional(),
+  mutation: z.literal("NONE"),
+  reason: z.string().trim().max(100),
+  durationMs: z.number().int().nonnegative().max(86_400_000).optional(),
+  completed: z.number().int().nonnegative().optional(),
+  skipped: z.number().int().nonnegative().optional(),
+  conflicts: z.number().int().nonnegative().optional(),
+  failed: z.number().int().nonnegative().optional(),
+  stores: z.object({ PMS: qraReconcileStore, TP6: qraReconcileStore }).strict().optional(),
+}).strict().superRefine((value, context) => {
+  if (value.status === "COMPLETED" && (!value.outcome || !value.stores)) context.addIssue({ code: "custom", message: "completed_reconcile_requires_outcome_and_store_results" });
+});
 
 export const eventDataSchemas = {
   "system.heartbeat": objectData,
@@ -57,6 +81,9 @@ export const eventDataSchemas = {
   "qra.audit.started": qraCommandData,
   "qra.audit.completed": qraCommandData,
   "qra.audit.failed": qraCommandData,
+  "qra.reconcile.started": qraReconcileData,
+  "qra.reconcile.completed": qraReconcileData,
+  "qra.reconcile.failed": qraReconcileData,
   "qra.resolve_missing_dates.started": qraCommandData,
   "qra.resolve_missing_dates.date_completed": qraCommandData,
   "qra.resolve_missing_dates.date_conflict": qraCommandData,

@@ -2,15 +2,25 @@ import { z } from "zod";
 
 export const commandStatuses = ["REQUESTED", "SENT", "ACKNOWLEDGED", "COMPLETED", "FAILED", "REJECTED", "EXPIRED"] as const;
 export const commandDeliveryModes = ["PUSH", "PULL"] as const;
+const calendarMonth = z.string().regex(/^\d{4}-\d{2}$/).refine((value) => {
+  const [year, month] = value.split("-").map(Number);
+  return year > 0 && month >= 1 && month <= 12;
+}, "invalid_calendar_month");
+const calendarDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const [year, month, day] = value.split("-").map(Number);
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}, "invalid_calendar_date");
 export const commandArguments = {
   "task.retry": z.object({ taskId: z.string().trim().min(1).max(200) }).strict(),
   "task.cancel": z.object({ taskId: z.string().trim().min(1).max(200) }).strict(),
   "worker.restart": z.object({ workerId: z.string().trim().min(1).max(200).optional() }).strict(),
-  "qra.audit_missing_dates": z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), store: z.enum(["ALL", "PMS", "TP6"]) }).strict(),
+  "qra.audit_missing_dates": z.object({ month: calendarMonth, store: z.enum(["ALL", "PMS", "TP6"]) }).strict(),
   "qra.resolve_missing_dates": z.object({
-    month: z.string().regex(/^\d{4}-\d{2}$/),
+    month: calendarMonth,
     store: z.enum(["PMS", "TP6"]),
-    dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(31).superRefine((dates, context) => {
+    dates: z.array(calendarDate).min(1).max(31).superRefine((dates, context) => {
       if (new Set(dates).size !== dates.length) context.addIssue({ code: "custom", message: "dates_must_be_unique" });
     }),
   }).strict().superRefine((value, context) => {
@@ -20,7 +30,7 @@ export const commandArguments = {
     store: z.enum(["PMS", "TP6", "ALL"]),
     type: z.enum(["MORNING", "CLOSING", "BOTH"]).optional(),
     briefingType: z.enum(["MORNING", "CLOSING", "BOTH"]).optional(),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    date: calendarDate,
   }).strict().refine((value) => value.type !== undefined || value.briefingType !== undefined, {
     message: "Either type or briefingType must be specified",
   }),

@@ -140,10 +140,39 @@ describe("project health derivation V1.1", () => {
     const derived = deriveHealthFromEvent(p, {
       type: "qra.resolve_missing_dates.completed",
       occurredAt: postFailureSuccess,
-      data: {},
+      data: { completed: 1, failed: 0 },
     });
 
     expect(derived.businessHealth).toBe("HEALTHY");
     expect(derived.operationalHealth).toBe("HEALTHY");
+  });
+
+  it("QRA recovery with no resolved dates is not business success", () => {
+    const p = base({
+      slug: "qra-system",
+      businessHealth: "FAILING",
+      operationalHealth: "FAILING",
+    });
+
+    const derived = deriveHealthFromEvent(p, {
+      type: "qra.resolve_missing_dates.completed",
+      occurredAt: new Date("2026-09-11T12:00:00.000Z"),
+      data: { completed: 0, skipped: 2, failed: 0 },
+    });
+
+    expect(derived.businessHealth).toBeUndefined();
+    expect(derived.operationalHealth).toBeUndefined();
+  });
+
+  it("QRA recovery with remaining partial dates is not business success", () => {
+    const p = base({ slug: "qra-system", businessHealth: "FAILING", operationalHealth: "FAILING" });
+    const derived = deriveHealthFromEvent(p, {
+      type: "qra.resolve_missing_dates.completed",
+      occurredAt: new Date("2026-09-11T12:00:00.000Z"),
+      data: { completed: 1, skipped: 1, partial: 1, failed: 0 },
+    });
+
+    expect(derived.businessHealth).toBeUndefined();
+    expect(derived.operationalHealth).toBeUndefined();
   });
 });

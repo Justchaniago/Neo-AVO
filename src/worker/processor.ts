@@ -34,10 +34,10 @@ export async function processClaimedEvent(db: Db, event: typeof schema.events.$i
       if (project.operationalHealth !== currentProject.operationalHealth) await queueHealthTransitionNotification(tx, { projectId: project.id, projectName: project.name, environment: project.environment, sourceKey: event.id, kind: "health", previous: project.operationalHealth, current: currentProject.operationalHealth, criticality: project.criticality, occurredAt: event.occurredAt });
       await resolveIncidentForEvent(tx, currentProject, { id: event.id, type: event.type, occurredAt: event.occurredAt, data: event.data }, `Recovered by ${event.type}`);
       await recordIncidentForEvent(tx, currentProject, { id: event.id, type: event.type, occurredAt: event.occurredAt, data: event.data });
+      await recoverExpectedExecutionForEvent(tx, event);
       const processed = await markEventProcessed(tx, event.id, event.claimToken!);
       if (!processed) throw new Error("event claim was lost before completion");
     });
-    try { await recoverExpectedExecutionForEvent(db, event); } catch (error) { log("error", "expected_execution", "recovery_evaluation_failed", { eventId: event.eventId, errorClass: error instanceof Error ? error.name : "unknown" }); }
     return { status: "processed" as const };
   } catch (error) {
     log("error", "worker", "event_processing_failed", { eventId: event.eventId, projectId: event.projectId, environment: event.environment, errorClass: error instanceof Error ? error.name : "unknown" });
