@@ -29,11 +29,11 @@ export async function markPushAttempt(db: Db, id: string, claimToken: string, su
   return row;
 }
 
-export async function expireCommands(db: Db, now = new Date()) { return db.update(commands).set({ status: "EXPIRED", updatedAt: now }).where(and(lte(commands.validUntil, now), or(eq(commands.status, "REQUESTED"), eq(commands.status, "SENT")))).returning(); }
+export async function expireCommands(db: Db, now = new Date()) { return db.update(commands).set({ status: "EXPIRED", updatedAt: now }).where(and(lte(commands.validUntil, now), inArray(commands.status, ["REQUESTED", "SENT", "ACKNOWLEDGED"]))).returning(); }
 
 export async function claimPullCommands(db: Db, projectId: string, environment: string, now = new Date(), limit = 20) {
   return db.transaction(async (tx) => {
-    await tx.update(commands).set({ status: "EXPIRED", updatedAt: now }).where(and(eq(commands.projectId, projectId), eq(commands.environment, environment), lte(commands.validUntil, now), or(eq(commands.status, "REQUESTED"), eq(commands.status, "SENT"))));
+    await tx.update(commands).set({ status: "EXPIRED", updatedAt: now }).where(and(eq(commands.projectId, projectId), eq(commands.environment, environment), lte(commands.validUntil, now), inArray(commands.status, ["REQUESTED", "SENT", "ACKNOWLEDGED"])));
     const rows = await tx.select().from(commands).where(and(eq(commands.projectId, projectId), eq(commands.environment, environment), eq(commands.deliveryMode, "PULL"), eq(commands.status, "REQUESTED"))).orderBy(asc(commands.requestedAt)).limit(limit).for("update", { skipLocked: true });
     if (!rows.length) return [];
     return tx.update(commands).set({ status: "SENT", deliveryAttempts: sql`${commands.deliveryAttempts} + 1`, updatedAt: now }).where(and(inArray(commands.id, rows.map((r) => r.id)), eq(commands.status, "REQUESTED"))).returning();

@@ -49,21 +49,37 @@ export async function evaluateExpectedExecutions(db: Db, now = new Date()) {
   const contracts = await db.select().from(schema.expectedExecutionContracts).where(eq(schema.expectedExecutionContracts.enabled, "true")).limit(200);
   let missed = 0;
   await db.transaction(async (tx) => {
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60_000);
     for (const contract of contracts) {
-      const expectedAt = expectedAtForDay(now, contract.timezone, contract.schedule);
-      if (!expectedAt || !contractEffectiveAt(contract, expectedAt) || now.getTime() <= expectedAt.getTime() + contract.gracePeriodSeconds * 1000) continue;
-      const [existing] = await tx.select().from(schema.expectedExecutionOccurrences).where(and(eq(schema.expectedExecutionOccurrences.contractId, contract.id), eq(schema.expectedExecutionOccurrences.expectedAt, expectedAt))).limit(1);
-      if (existing) continue;
-      const [project] = await tx.select().from(schema.projects).where(eq(schema.projects.id, contract.projectId)).limit(1);
-      if (!project) continue;
-      const recentSuccess = await tx.select({ id: schema.events.id, data: schema.events.data }).from(schema.events).where(and(eq(schema.events.projectId, project.id), eq(schema.events.type, contract.expectedEventType), gte(schema.events.occurredAt, expectedAt), lte(schema.events.occurredAt, now))).limit(20);
-      if (recentSuccess.some((event) => matchesContractMetadata(event.data, contract.metadata))) continue;
-      const [occurrence] = await tx.insert(schema.expectedExecutionOccurrences).values({ contractId: contract.id, expectedAt, missedAt: now }).onConflictDoNothing({ target: [schema.expectedExecutionOccurrences.contractId, schema.expectedExecutionOccurrences.expectedAt] }).returning();
-      if (!occurrence) continue;
-      const dedupKey = `expected:${contract.id}:${expectedAt.toISOString()}`;
-      await tx.insert(schema.incidents).values({ projectId: project.id, environment: project.environment, type: "EXPECTED_EXECUTION_MISSED", dedupKey, severity: contract.severityOnMiss, state: "OPEN", reason: `${contract.name} missed its expected execution after the grace window`, firstSeenAt: now, lastSeenAt: now }).onConflictDoNothing();
-      await updateProject(tx, project.id, { businessHealth: contract.severityOnMiss === "WARNING" ? "DEGRADED" : "FAILING" });
-      missed += 1;
+      const candidates = [
+        expectedAtForDay(yesterday, contract.timezone, contract.schedule),
+        expectedAtForDay(now, contract.timezone, contract.schedule),
+      ].filter((d): d is Date => d !== null);
+      for (const expectedAt of candidates) {
+        if (!contractEffectiveAt(contract, expectedAt) || now.getTime() <= expectedAt.getTime() + contract.gracePeriodSeconds * 1000) continue;
+        const [existing] = await tx.select().from(schema.expectedExecutionOccurrences).where(and(eq(schema.expectedExecutionOccurrences.contractId, contract.id), eq(schema.expectedExecutionOccurrences.expectedAt, expectedAt))).limit(1);
+        if (existing) continue;
+        const [project] = await tx.select().from(schema.projects).where(eq(schema.projects.id, contract.projectId)).limit(1);
+        if (!project) continue;
+        const recentSuccess = await tx.select({ id: schema.events.id, data: schema.events.data }).from(schema.events).where(and(eq(schema.events.projectId, project.id), eq(schema.events.type, contract.expectedEventType), gte(schema.events.occurredAt, expectedAt), lte(schema.events.occurredAt, now))).limit(20);
+        if (recentSuccess.some((event) => matchesContractMetadata(event.data, contract.metadata))) continue;
+        const [occurrence] = await tx.insert(schema.expectedExecutionOccurrences).values({ contractId: contract.id, expectedAt, missedAt: now }).onConflictDoNothing({ target: [schema.expectedExecutionOccurrences.contractId, schema.expectedExecutionOccurrences.expectedAt] }).returning();
+        if (!occurrence) continue;
+        const dedupKey = `expected:${contract.id}:${expectedAt.toISOString()}`;
+        const reason = `${contract.name} missed its expected execution after the grace window`;
+        const [incident] = await tx.insert(schema.incidents).values({ projectId: project.id, environment: project.environment, type: "EXPECTED_EXECUTION_MISSED", dedupKey, severity: contract.severityOnMiss, state: "OPEN", reason, firstSeenAt: now, lastSeenAt: now }).onConflictDoNothing().returning();
+        if (incident && (contract.severityOnMiss === "HIGH" || contract.severityOnMiss === "CRITICAL")) {
+          await tx.insert(schema.notifications).values({
+            incidentId: incident.id,
+            kind: "initial",
+            dedupKey: `${incident.id}:initial`,
+            severity: contract.severityOnMiss,
+            message: `[${contract.severityOnMiss}] EXPECTED_EXECUTION_MISSED (${project.environment})\n${reason}`,
+          }).onConflictDoNothing({ target: [schema.notifications.incidentId, schema.notifications.kind] });
+        }
+        await updateProject(tx, project.id, { businessHealth: contract.severityOnMiss === "WARNING" ? "DEGRADED" : "FAILING" });
+        missed += 1;
+      }
     }
   });
   return { evaluated: contracts.length, missed };

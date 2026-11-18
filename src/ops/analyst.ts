@@ -19,6 +19,13 @@ export async function runOneOpsAnalysis(db: Db) {
     const recommendedActions = result.output.recommendedActions.filter((action) => allowed.has(action.capability));
     await markAnalysisSucceeded(db, analysis.id, analysis.claimToken!, { ...result.output, recommendedActions, model: result.model });
     if (recordAnalysisInvocation) await recordAnalysisInvocation(db, { analysisId: analysis.id, trigger: analysis.attempts > 1 ? "ANALYZE_AGAIN" : "INCIDENT_GATED", model: result.model, status: "SUCCEEDED" });
+    await db.insert(schema.notifications).values({
+      incidentId: analysis.incidentId,
+      kind: "ai_enrichment",
+      dedupKey: `${analysis.incidentId}:ai_enrichment`,
+      severity: "INFO",
+      message: `[AI Ops Analyst]\nSummary: ${result.output.summary}\nLikely cause: ${result.output.likelyCause}`,
+    }).onConflictDoNothing({ target: [schema.notifications.incidentId, schema.notifications.kind] });
     return { status: "succeeded" as const };
   } catch (error) {
     await markAnalysisFailed(db, analysis.id, analysis.claimToken!, error);

@@ -208,7 +208,9 @@ function RegenerateResultDisplay({
     date?: string;
     status?: string;
     briefings?: Array<{ store: string; type: string; status: string; date?: string; error?: string }>;
+    results?: Array<{ store: string; type: string; status: string; date?: string; error?: string }>;
   } | null;
+  const briefingRows = result?.briefings ?? result?.results;
 
   const args = (command.arguments || {}) as { store?: string; type?: string; briefingType?: string; date?: string };
   const storeLabel = args.store || "ALL";
@@ -261,12 +263,12 @@ function RegenerateResultDisplay({
           <p style={{ color: "var(--secondary)", margin: "0 0 8px 0", fontSize: "13px", fontWeight: "bold" }}>
             Briefing regeneration completed successfully.
           </p>
-          {result?.briefings && (
+          {briefingRows && (
             <div style={{ display: "grid", gap: "6px", fontSize: "12px" }}>
-              {result.briefings.map((b, idx) => (
+              {briefingRows.map((b, idx) => (
                 <div key={idx} style={{ display: "flex", justifyContent: "space-between", background: "var(--canvas)", padding: "8px 12px", borderRadius: "4px" }}>
                   <span><strong>{b.store}</strong> {b.type}</span>
-                  <span style={{ color: b.status === "SUCCESS" ? "var(--secondary)" : "var(--coral)" }}>
+                  <span style={{ color: b.status === "SUCCESS" || b.status === "SENT" ? "var(--secondary)" : "var(--coral)" }}>
                     {b.status} {b.error ? `(${b.error})` : ""}
                   </span>
                 </div>

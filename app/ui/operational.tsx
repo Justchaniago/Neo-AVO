@@ -118,7 +118,7 @@ export function IncidentRows({
                 / {i.environment}
               </span>
               <h3>{eventLabel(i.type)}</h3>
-              <p>{i.reason}</p>
+              <p>{i.reason?.trim() || `${eventLabel(i.type)} (${i.id.slice(0, 8)})`}</p>
               <span className="muted">
                 <Time value={i.lastSeenAt} /> · {i.occurrenceCount}{" "}
                 occurrence(s)

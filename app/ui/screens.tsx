@@ -508,22 +508,39 @@ export function ActivityScreen() {
   );
 }
 export function IncidentsScreen() {
-  const { incidents, refresh } = useDashboard();
+  const { incidents, projects, refresh } = useDashboard();
   const [state, setState] = useState("ACTIVE");
   const [project, setProject] = useState("");
   const [severity, setSeverity] = useState("");
+  const [query, setQuery] = useState("");
+  const [groupByType, setGroupByType] = useState(true);
   useEffect(() => {
     setProject(
       new URLSearchParams(window.location.search).get("project") || "",
     );
   }, []);
+  const q = query.trim().toLowerCase();
   const items = incidents.data?.incidents.filter(
     (i) =>
       (!project || i.projectId === project) &&
       (!severity || i.severity === severity) &&
       (state === "ALL" ||
-        (state === "ACTIVE" ? i.state !== "RESOLVED" : i.state === state)),
+        (state === "ACTIVE" ? i.state !== "RESOLVED" : i.state === state)) &&
+      (!q ||
+        i.reason.toLowerCase().includes(q) ||
+        i.type.toLowerCase().includes(q) ||
+        i.projectId.toLowerCase().includes(q)),
   );
+  const grouped = items && groupByType
+    ? Object.values(
+        items.reduce<Record<string, { key: string; projectId: string; type: string; items: typeof items }>>((acc, item) => {
+          const key = `${item.projectId}:${item.type}`;
+          if (!acc[key]) acc[key] = { key, projectId: item.projectId, type: item.type, items: [] };
+          acc[key].items.push(item);
+          return acc;
+        }, {}),
+      ).sort((a, b) => b.items.length - a.items.length)
+    : null;
   return (
     <>
       <PageTitle
@@ -575,6 +592,23 @@ export function IncidentsScreen() {
             ))}
           </select>
         </label>
+        <label>
+          Search{" "}
+          <input
+            type="search"
+            placeholder="Filter reason, type, project..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+          <input
+            type="checkbox"
+            checked={groupByType}
+            onChange={(e) => setGroupByType(e.target.checked)}
+          />
+          Group by type
+        </label>
         {project && (
           <button onClick={() => setProject("")}>Clear project filter ×</button>
         )}
@@ -584,7 +618,30 @@ export function IncidentsScreen() {
       ) : !items ? (
         <Loading />
       ) : items.length ? (
-        <IncidentRows incidents={items} />
+        grouped ? (
+          <div style={{ display: "grid", gap: "1rem" }}>
+            {grouped.map((g) => {
+              const projectName = projects.data?.projects.find((p) => p.id === g.projectId)?.name || g.projectId;
+              const totalOccurrences = g.items.reduce((sum, x) => sum + x.occurrenceCount, 0);
+              return (
+                <Panel
+                  key={g.key}
+                  title={`${projectName} · ${g.type}`}
+                  label={`${g.items.length} incident(s) · ${totalOccurrences} occurrence(s)`}
+                >
+                  <IncidentRows incidents={g.items} limit={g.items.length > 5 ? 5 : undefined} />
+                  {g.items.length > 5 && (
+                    <p className="muted" style={{ marginTop: "0.5rem" }}>
+                      Showing 5 of {g.items.length} incidents in this group. Uncheck &ldquo;Group by type&rdquo; or export JSON to inspect all.
+                    </p>
+                  )}
+                </Panel>
+              );
+            })}
+          </div>
+        ) : (
+          <IncidentRows incidents={items} />
+        )
       ) : (
         <Panel>
           <Empty

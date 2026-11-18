@@ -44,14 +44,12 @@ export async function monitorProjectHealth(db: Db, now = new Date()) {
         }
       }
 
-      const allIncidents = await tx
+      const openIncidents = await tx
         .select()
         .from(schema.incidents)
-        .where(eq(schema.incidents.projectId, project.id));
+        .where(and(eq(schema.incidents.projectId, project.id), ne(schema.incidents.state, "RESOLVED")));
 
-      const openIncidents = allIncidents.filter((i) => i.state !== "RESOLVED");
-
-      for (const inc of allIncidents) {
+      for (const inc of openIncidents) {
         const incTime = new Date(inc.lastSeenAt || inc.firstSeenAt || inc.createdAt);
         if (!latestFailureAt || incTime.getTime() > latestFailureAt.getTime()) {
           latestFailureAt = incTime;

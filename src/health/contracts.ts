@@ -30,12 +30,18 @@ export function evaluateBusinessProof(
   if (projectSlug === "briefing-agent") {
     const sentCount = typeof data.sent_count === "number" ? data.sent_count : 0;
     const isSuccess =
-      (event.type === "task.completed" || event.type === "briefing.completed") &&
-      sentCount > 0;
+      event.type === "briefing.sent" ||
+      ((event.type === "task.completed" || event.type === "briefing.completed") && sentCount > 0);
     const isFailure =
       event.type === "task.failed" ||
+      event.type === "briefing.failed" ||
       (event.type === "task.completed" && sentCount === 0);
-    const desc = isSuccess ? `Briefing delivered to Telegram (${sentCount} sent)` : null;
+    const desc =
+      event.type === "briefing.sent"
+        ? `Briefing delivered to Telegram (${data.store_code || "store"} ${data.briefing_type || ""})`.trim()
+        : isSuccess
+          ? `Briefing delivered to Telegram (${sentCount} sent)`
+          : null;
     return { isValidSuccess: isSuccess, isValidFailure: isFailure, description: desc };
   }
 

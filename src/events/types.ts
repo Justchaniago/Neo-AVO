@@ -33,6 +33,8 @@ const qraCommandData = z.object({
   partial: z.number().int().nonnegative().optional(),
   conflicts: z.number().int().nonnegative().optional(),
   failed: z.number().int().nonnegative().optional(),
+  completeness: z.enum(["COMPLETE", "PARTIAL"]).optional(),
+  sourceStatus: z.string().trim().max(80).optional(),
 }).strict();
 
 const qraReconcileStore = z.object({
@@ -99,6 +101,11 @@ export const eventDataSchemas = {
   "tele_auto.worker.recovery": teleAutoData,
   "tele_auto.telegram.delivery_failed": teleAutoData,
   "tele_auto.sheets.schema_mismatch": teleAutoData,
+  "briefing.generated": objectData,
+  "briefing.sent": objectData,
+  "briefing.failed": objectData,
+  "config.target_pending": objectData,
+  "config.target_updated": objectData,
 } as const;
 
 export const eventTypes = Object.keys(eventDataSchemas) as [keyof typeof eventDataSchemas, ...(keyof typeof eventDataSchemas)[]];
