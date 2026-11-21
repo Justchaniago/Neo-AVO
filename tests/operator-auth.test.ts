@@ -89,7 +89,7 @@ describe("operator authentication", () => {
 
   it("only follows same-site paths after sign-in", () => {
     expect(safeNextPath("/incidents?state=OPEN")).toBe("/incidents?state=OPEN");
-    for (const value of [null, "", "//evil.example", "/\\evil.example", "https://evil.example", "/login?next=/"]) expect(safeNextPath(value)).toBe("/");
+    for (const value of [null, "", "//evil.example", "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/a\\b", "https://evil.example", "/login?next=/"]) expect(safeNextPath(value)).toBe("/");
   });
 
   it.each(["", "Bearer project-token", "Basic !!!", basic("operator"), basic("wrong:" + password), basic("operator:wrong")])("rejects invalid authorization %s", async (authorization) => {
