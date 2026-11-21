@@ -14,6 +14,7 @@ export function read<T>(url: string, signal?: AbortSignal): Promise<T> {
     const current = entry;
     current.result = fetch(url, { cache: "no-store", signal: controller.signal })
       .then(response => {
+        if (response.status === 401) window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
         if (!response.ok) throw new Error("Operational data unavailable");
         return response.json();
       }).then(data => { current.at = Date.now(); return data; })
