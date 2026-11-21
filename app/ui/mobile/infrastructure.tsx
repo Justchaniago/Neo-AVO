@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Icon } from "../icons";
-import { Badge, Facts, PageTitle } from "../primitives";
+import { Badge, Facts, PageTitle, percent } from "../primitives";
 import { getTelemetryFreshness } from "../model";
 import { ResourceLineChart } from "../resource-chart";
 import { CloudObserverSurface } from "../cloud-observer";
@@ -54,9 +54,9 @@ export function MobileInfrastructure() {
           <Facts
             rows={[
               ["Host", `${infra?.host?.name || "shared-prod-01"} (${infra?.host?.provider || "AWS Lightsail"})`],
-              ["System Load (Capacity)", `${latest?.cpuPercent ?? "—"}%`],
-              ["Memory Usage", `${latest?.memoryPercent ?? "—"}%`],
-              ["Disk Usage", `${latest?.diskPercent ?? "—"}%`],
+              ["System Load (Capacity)", percent(latest?.cpuPercent)],
+              ["Memory Usage", percent(latest?.memoryPercent)],
+              ["Disk Usage", percent(latest?.diskPercent)],
               ["Swap Pressure", "< 1% (0% pressure)"],
             ]}
           />

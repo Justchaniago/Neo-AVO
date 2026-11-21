@@ -30,6 +30,7 @@ import {
   Overlay,
   Panel,
   Time,
+  plural,
 } from "./primitives";
 
 export function ProjectCard({ project: p }: { project: Project }) {
@@ -126,8 +127,7 @@ export function IncidentRows({
               <h3>{eventLabel(i.type)}</h3>
               <p>{i.reason?.trim() || `${eventLabel(i.type)} (${i.id.slice(0, 8)})`}</p>
               <span className="muted">
-                <Time value={i.lastSeenAt} /> · {i.occurrenceCount}{" "}
-                occurrence(s)
+                <Time value={i.lastSeenAt} /> · {plural(i.occurrenceCount, "occurrence")}
               </span>
             </div>
             <div className="row-state">

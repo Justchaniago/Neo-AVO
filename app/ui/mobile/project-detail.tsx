@@ -89,8 +89,8 @@ export function MobileProjectDetail({
               ["Last Operational", <Time key="lo" value={project.lastOperationalAt} />],
               ["Last Business Proof", <Time key="lse" value={project.lastSuccessfulExecutionAt} />],
               ["Next Expected Execution", isEventDriven ? "Event-driven (No scheduled cron)" : project.expectedNextExecutionAt ? <Time key="nee" value={project.expectedNextExecutionAt} /> : "Not scheduled"],
-              ["Runtime Mode", project.runtimeMode],
-              ["Health Strategy", project.healthStrategy],
+              ["Runtime Mode", project.runtimeMode.replaceAll("_", " ")],
+              ["Health Strategy", project.healthStrategy.replaceAll("_", " ")],
             ]}
           />
         </div>

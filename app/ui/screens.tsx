@@ -28,6 +28,8 @@ import {
   PageTitle,
   Panel,
   Time,
+  percent,
+  plural,
 } from "./primitives";
 import {
   ActivityFeed,
@@ -201,7 +203,7 @@ export function OverviewScreen() {
         </Panel>
         <Panel
           className="overview-activity"
-          label="04 / Operational history"
+          label="05 / Operational history"
           title="Just happened"
           action={<Link href="/activity">Activity <Icon name="arrow" /></Link>}
         >
@@ -210,7 +212,7 @@ export function OverviewScreen() {
         <Panel
           color="purple"
           className="overview-intelligence"
-          label="05 / AI interpretation"
+          label="06 / AI interpretation"
           title="A second perspective."
         >
           <p>
@@ -226,7 +228,7 @@ export function OverviewScreen() {
         </Panel>
         <Panel
           className="overview-agents"
-          label="06 / Agent observability"
+          label="07 / Agent observability"
           title="Awaiting a signal."
         >
           <p>
@@ -427,7 +429,7 @@ export function ProjectScreen({ id }: { id: string }) {
                   </Empty>
                 )}
               </Panel>
-              <Panel title="Operations intelligence" label="Expected work and context">
+              <Panel className="span-full" title="Operations intelligence" label="Expected work and context">
                 <Facts rows={[
                   ["Expected executions", result.data.expectedExecutions?.length ?? 0],
                   ["Dependencies", result.data.dependencies?.length ?? 0],
@@ -611,7 +613,7 @@ export function IncidentsScreen() {
             onChange={(e) => setQuery(e.target.value)}
           />
         </label>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+        <label className="check-label">
           <input
             type="checkbox"
             checked={groupByType}
@@ -636,8 +638,8 @@ export function IncidentsScreen() {
               return (
                 <Panel
                   key={g.key}
-                  title={`${projectName} · ${g.type}`}
-                  label={`${g.items.length} incident(s) · ${totalOccurrences} occurrence(s)`}
+                  title={`${projectName} · ${g.type.replaceAll("_", " ")}`}
+                  label={`${plural(g.items.length, "incident")} · ${plural(totalOccurrences, "occurrence")}`}
                 >
                   <IncidentRows incidents={g.items} limit={g.items.length > 5 ? 5 : undefined} />
                   {g.items.length > 5 && (
@@ -829,7 +831,7 @@ function SelectedAssessmentDetail({ id }: { id: string }) {
       : [
           `Linked incident: ${i.id.slice(0, 8)}`,
           `Dependency signature: ${i.dependencyKey || "system:host"}`,
-          `Occurrences: ${i.occurrenceCount} event(s) correlated`,
+          `Occurrences: ${plural(i.occurrenceCount, "event")} correlated`,
         ];
 
   const recoveryText =
@@ -1339,9 +1341,6 @@ export function ServerHealthCard() {
   }, []);
 
   const snapshot = data?.hostSnapshot;
-  const cpu = snapshot?.cpuPercent ?? "—";
-  const mem = snapshot?.memoryPercent ?? "—";
-  const disk = snapshot?.diskPercent ?? "—";
   const pressure = (snapshot?.serviceState as { pressureState?: string })?.pressureState ?? "NORMAL";
   const freshness = snapshot?.observedAt ? getTelemetryFreshness(snapshot.observedAt) : "UNKNOWN";
 
@@ -1358,9 +1357,9 @@ export function ServerHealthCard() {
           ["Host", "shared-prod-01 (AWS Lightsail)"],
           ["Pressure State", <Badge key="pressure" value={pressure} />],
           ["Telemetry Freshness", <Badge key="freshness" value={freshness} />],
-          ["System Load (Capacity)", `${cpu}%`],
-          ["Memory", `${mem}%`],
-          ["Disk", `${disk}%`],
+          ["System Load (Capacity)", percent(snapshot?.cpuPercent)],
+          ["Memory", percent(snapshot?.memoryPercent)],
+          ["Disk", percent(snapshot?.diskPercent)],
           ["Services Status", "6 / 6 Monitored Services Healthy"],
         ]}
       />
@@ -1381,13 +1380,17 @@ export function InfrastructureScreen() {
     latestSnapshot?: { cpuPercent: number; memoryPercent: number; diskPercent: number; serviceState?: Record<string, unknown>; observedAt: string };
     history?: Array<{ cpuPercent: number; memoryPercent: number; diskPercent: number; pressureStatePeak?: string; observedAt: string }>;
   } | null>(null);
+  const [infraFailed, setInfraFailed] = useState(false);
 
   useEffect(() => {
     const load = () => {
       fetch(`/api/v1/infrastructure?range=${range}`)
-        .then((res) => res.json())
-        .then(setInfra)
-        .catch(() => null);
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`infrastructure ${res.status}`))))
+        .then((data) => {
+          setInfra(data);
+          setInfraFailed(false);
+        })
+        .catch(() => setInfraFailed(true));
     };
     load();
     const interval = setInterval(load, 5000);
@@ -1425,9 +1428,9 @@ export function InfrastructureScreen() {
               rows={[
                 ["Pressure State", <Badge key="pressure" value={state} />],
                 ["Telemetry Freshness", <Badge key="freshness" value={latest?.observedAt ? getTelemetryFreshness(latest.observedAt) : "UNKNOWN"} />],
-                ["System Load (Capacity)", `${latest?.cpuPercent ?? "—"}%`],
-                ["Memory", `${latest?.memoryPercent ?? "—"}%`],
-                ["Disk", `${latest?.diskPercent ?? "—"}%`],
+                ["System Load (Capacity)", percent(latest?.cpuPercent)],
+                ["Memory", percent(latest?.memoryPercent)],
+                ["Disk", percent(latest?.diskPercent)],
                 ["Swap Pressure", "< 1% (0% pressure)"],
               ]}
             />
@@ -1462,6 +1465,7 @@ export function InfrastructureScreen() {
               {(["1h", "6h", "24h", "7d", "30d"] as const).map((r) => (
                 <button
                   key={r}
+                  aria-pressed={range === r}
                   onClick={() => setRange(r)}
                   style={{
                     padding: "0.25rem 0.75rem",
@@ -1482,7 +1486,11 @@ export function InfrastructureScreen() {
                 ? `Loaded ${infra.history.length} bounded data points for time range ${range}. Source: ${
                     range === "7d" ? "5-minute aggregates" : range === "30d" ? "1-hour aggregates" : "raw 30s snapshots"
                   }.`
-                : "Loading resource history telemetry…"}
+                : infraFailed
+                  ? "Resource history could not be loaded. Retrying…"
+                  : infra
+                  ? `No resource history has been recorded for the last ${range}.`
+                  : "Loading resource history telemetry…"}
             </p>
 
             {infra?.history && infra.history.length > 0 ? (
@@ -1526,11 +1534,7 @@ export function InfrastructureScreen() {
                   }}
                 />
               </div>
-            ) : (
-              <p className="muted" style={{ padding: "20px", textAlign: "center" }}>
-                No telemetry available for this range
-              </p>
-            )}
+            ) : null}
           </Panel>
 
           <Panel className="infra-full-panel" label="06 / Pressure Episodes & Incident Context" title="Historical Episodes">
