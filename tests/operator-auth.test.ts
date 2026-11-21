@@ -26,7 +26,7 @@ describe("operator authentication", () => {
     ["GET", "/api/v1/projects/project-123"], ["PATCH", "/api/v1/projects/project-123"],
     ["POST", "/api/v1/projects/project-123/credentials/rotate"],
     ["GET", "/_next/static/chunks/app.js"], ["GET", "/_next/image"], ["HEAD", "/favicon.ico"],
-    ["GET", "/robots.txt"], ["GET", "/sitemap.xml"], ["GET", "/login"],
+    ["GET", "/icon.svg"], ["GET", "/robots.txt"], ["GET", "/sitemap.xml"], ["GET", "/login"],
     ["POST", "/api/v1/operator/session"], ["DELETE", "/api/v1/operator/session"],
   ])("leaves %s %s to its existing route authentication", async (method, path) => {
     expect(isPublicRequest(path, method)).toBe(true);

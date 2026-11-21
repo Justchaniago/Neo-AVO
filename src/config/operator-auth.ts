@@ -1,5 +1,5 @@
 export function isPublicRequest(pathname: string, method: string) {
-  if ((method === "GET" || method === "HEAD") && (pathname.startsWith("/_next/") || ["/favicon.ico", "/robots.txt", "/sitemap.xml"].includes(pathname))) return true;
+  if ((method === "GET" || method === "HEAD") && (pathname.startsWith("/_next/") || ["/favicon.ico", "/icon.svg", "/robots.txt", "/sitemap.xml"].includes(pathname))) return true;
   if (method === "GET" && pathname === "/api/health") return true;
   if ((method === "GET" || method === "HEAD") && pathname === "/login") return true;
   if ((method === "POST" || method === "DELETE") && pathname === "/api/v1/operator/session") return true;
