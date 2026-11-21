@@ -13,7 +13,7 @@ import { hashPassword, verifyPassword } from "../src/operator/password";
 const envPassword = "environment-password-123";
 const storedPassword = "changed-in-settings-456";
 const basic = (value: string) => `Basic ${Buffer.from(value).toString("base64")}`;
-const request = (credentials?: string) => new NextRequest("https://neo.example/", credentials ? { headers: { authorization: basic(credentials) } } : undefined);
+const request = (credentials?: string) => new NextRequest("https://neo.example/api/v1/projects", credentials ? { headers: { authorization: basic(credentials) } } : undefined);
 
 describe("stored operator credentials", () => {
   beforeEach(() => {

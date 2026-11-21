@@ -34,12 +34,12 @@ export function OperatorCredentialsControl() {
       });
       const body = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) return setMessage({ ok: false, text: errors[body.error ?? ""] ?? "Unable to update the login. Retry." });
-      setMessage({ ok: true, text: "Login updated. Your browser will ask you to sign in again with the new credentials." });
+      setMessage({ ok: true, text: "Login updated. Sign in again with the new credentials." });
+      setTimeout(() => window.location.assign("/login"), 1500);
       setUsername("");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setRevision((value) => value + 1);
     } catch {
       setMessage({ ok: false, text: "Unable to update the login. Check connectivity and retry." });
     } finally {

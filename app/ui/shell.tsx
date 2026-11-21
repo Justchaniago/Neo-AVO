@@ -79,6 +79,11 @@ function ConsoleShell({ children }: { children: ReactNode }) {
     setMenu(false);
     setSearch(false);
   }, [pathname]);
+  const signOut = async () => {
+    const response = await fetch("/api/v1/operator/session", { method: "DELETE" }).catch(() => null);
+    if (response?.ok) window.location.assign("/login");
+    else window.alert("Sign out failed. You are still signed in; check connectivity and retry.");
+  };
   const match = (value: string) =>
     value.toLowerCase().includes(query.toLowerCase());
   return (
@@ -119,6 +124,7 @@ function ConsoleShell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
+        <button className="sign-out" onClick={signOut} type="button">Sign out</button>
         <div className="sidebar-pulse">
           <p className="eyebrow">System pulse / Neo AVO</p>
           <strong>
@@ -260,6 +266,8 @@ function ConsoleShell({ children }: { children: ReactNode }) {
   );
 }
 export function Shell({ children }: { children: ReactNode }) {
+  // The sign-in page is public: no console chrome and no dashboard data requests.
+  if (usePathname() === "/login") return <>{children}</>;
   return (
     <DashboardProvider>
       <ConsoleShell>{children}</ConsoleShell>
