@@ -81,6 +81,12 @@ describe("stored operator credentials", () => {
     expect(await verifyOperatorCredentials(auth, `nobody:${storedPassword}`)).toBe(false);
   });
 
+  it("accepts a burst of concurrent requests with the same valid login", async () => {
+    const auth = { kind: "stored" as const, username: "ferry", passwordHash: await hashPassword(storedPassword), updatedAt: new Date() };
+    const results = await Promise.all(Array.from({ length: 12 }, () => verifyOperatorCredentials(auth, `ferry:${storedPassword}`)));
+    expect(results.every(Boolean)).toBe(true);
+  });
+
   it("never accepts unresolved auth states", async () => {
     expect(await verifyOperatorCredentials({ kind: "unconfigured" }, "a:b")).toBe(false);
     expect(await verifyOperatorCredentials({ kind: "unavailable" }, "a:b")).toBe(false);

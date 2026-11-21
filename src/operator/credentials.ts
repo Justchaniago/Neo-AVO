@@ -18,7 +18,7 @@ export type OperatorAuth =
 const ROW_ID = "operator";
 const CACHE_TTL_MS = 10_000;
 const MAX_CONCURRENT_VERIFICATIONS = 4;
-let activeVerifications = 0;
+const pendingVerifications = new Map<string, Promise<boolean>>();
 const cache = globalThis as typeof globalThis & {
   __neoAvoOperatorStored?: { value: Stored | null; loadedAt: number };
   __neoAvoOperatorVerified?: { passwordHash: string; credentials: string };
@@ -87,15 +87,17 @@ export async function verifyOperatorCredentials(auth: OperatorAuth, supplied: st
   if (verified?.passwordHash === auth.passwordHash && (await credentialsEqual(supplied, verified.credentials))) return true;
   const separator = supplied.indexOf(":");
   if (separator < 0) return false;
-  // Only a correct username reaches scrypt, and only a few checks run at once, so anonymous requests cannot queue memory-hard work.
+  // Only a correct username reaches scrypt, and only a few distinct checks run at once, so anonymous requests cannot queue memory-hard work.
   if (!(await credentialsEqual(supplied.slice(0, separator), auth.username))) return false;
-  if (activeVerifications >= MAX_CONCURRENT_VERIFICATIONS) return false;
-  activeVerifications++;
-  try {
-    if (!(await verifyPassword(supplied.slice(separator + 1), auth.passwordHash))) return false;
-  } finally {
-    activeVerifications--;
+  // Concurrent requests with the same credentials (a dashboard loading its APIs) share one check.
+  const key = `${auth.passwordHash}\n${supplied}`;
+  let pending = pendingVerifications.get(key);
+  if (!pending) {
+    if (pendingVerifications.size >= MAX_CONCURRENT_VERIFICATIONS) return false;
+    pending = verifyPassword(supplied.slice(separator + 1), auth.passwordHash).finally(() => pendingVerifications.delete(key));
+    pendingVerifications.set(key, pending);
   }
+  if (!(await pending)) return false;
   cache.__neoAvoOperatorVerified = { passwordHash: auth.passwordHash, credentials: supplied };
   return true;
 }
