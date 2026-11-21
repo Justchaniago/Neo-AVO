@@ -25,6 +25,22 @@ export function retryAfterSeconds(client: string, now = Date.now()) {
   return kept.length < MAX_FAILED_ATTEMPTS ? 0 : Math.max(1, Math.ceil((kept[0] + ATTEMPT_WINDOW_MS - now) / 1000));
 }
 
+/**
+ * Counts an attempt before it is checked, so a burst cannot outrun the limit.
+ * Returns the seconds to wait when the client is limited, otherwise a function that forgets the attempt once it succeeded.
+ */
+export function beginAttempt(client: string, now = Date.now()): number | (() => void) {
+  const retryAfter = retryAfterSeconds(client, now);
+  if (retryAfter) return retryAfter;
+  recordFailedAttempt(client, now);
+  return () => {
+    const kept = failures().get(client);
+    const index = kept?.indexOf(now) ?? -1;
+    if (index >= 0) kept!.splice(index, 1);
+    if (kept && !kept.length) failures().delete(client);
+  };
+}
+
 export function recordFailedAttempt(client: string, now = Date.now()) {
   const map = failures();
   if (!map.has(client) && map.size >= MAX_TRACKED_CLIENTS) {
