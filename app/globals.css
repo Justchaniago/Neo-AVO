@@ -191,6 +191,12 @@ input[type="radio"] {
   accent-color: var(--ink);
   cursor: pointer;
 }
+.service-fact {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 .check-label {
   display: inline-flex;
   align-items: center;
@@ -787,10 +793,8 @@ main {
   opacity: 0.8;
 }
 .project-paused-sign {
-  position: absolute;
-  top: -11px;
-  right: 16px;
-  z-index: 2;
+  flex: none;
+  white-space: nowrap;
   background: #27272a;
   color: #fafafa;
   border: 2px solid #09090b;

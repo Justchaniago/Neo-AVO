@@ -5,13 +5,17 @@ import * as schema from "../db/schema";
 import { commands, events, tasks, incidents, expectedExecutionContracts, projectDependencies, operationalChanges, recoveryEvidence } from "../db/schema";
 import { listProjects, findProjectById } from "../projects/repository";
 import { getProjectTimeline } from "./timeline";
+import { getHostEntity, MONITORED_SERVICES } from "../ops/resources";
 
 type Db = NodePgDatabase<typeof schema>;
 
 export async function getOverview(db: Db) {
   const projects = await listProjects(db);
   const [latestSnapshot] = await db.select().from(schema.resourceSnapshots).where(eq(schema.resourceSnapshots.scope, "neo-avo-host")).orderBy(desc(schema.resourceSnapshots.observedAt)).limit(1);
+  const host = getHostEntity();
   return {
+    host: { name: host.name, provider: host.provider },
+    monitoredServices: MONITORED_SERVICES,
     projects: projects.map((project) => { const { commandAuthCiphertext: _c, commandAuthIv: _i, commandAuthTag: _t, ...safe } = project; return safe; }),
     hostSnapshot: latestSnapshot ? {
       scope: latestSnapshot.scope,

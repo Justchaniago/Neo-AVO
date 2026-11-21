@@ -47,6 +47,8 @@ import { MobileInfrastructure } from "./mobile/infrastructure";
 import { MobileIntelligence } from "./mobile/intelligence";
 import { ResourceLineChart } from "./resource-chart";
 import { CloudObserverSurface } from "./cloud-observer";
+import { blastRadiusFactRows, episodeFactRows, serviceFactRows } from "./infrastructure-panels";
+import { loadAverages, serviceRows, serviceSummary } from "../../src/ops/infrastructure-view";
 
 function Refresh() {
   const { refresh, checkedAt, refreshing, online, stale } = useDashboard();
@@ -1331,7 +1333,7 @@ export function SettingsScreen() {
 }
 
 export function ServerHealthCard() {
-  const [data, setData] = useState<{ hostSnapshot?: { cpuPercent: number; memoryPercent: number; diskPercent: number; serviceState?: Record<string, unknown>; observedAt: string } } | null>(null);
+  const [data, setData] = useState<{ host?: { name: string; provider: string }; monitoredServices?: Array<{ name: string; displayName: string; projectAssociation: string; criticality: string }>; hostSnapshot?: { cpuPercent: number; memoryPercent: number; diskPercent: number; serviceState?: Record<string, unknown>; observedAt: string } } | null>(null);
 
   useEffect(() => {
     fetch("/api/v1/dashboard/overview")
@@ -1341,7 +1343,9 @@ export function ServerHealthCard() {
   }, []);
 
   const snapshot = data?.hostSnapshot;
-  const pressure = (snapshot?.serviceState as { pressureState?: string })?.pressureState ?? "NORMAL";
+  const pressure = (snapshot?.serviceState as { pressureState?: string })?.pressureState ?? (snapshot ? "NORMAL" : "UNKNOWN");
+  const host = data?.host;
+  const services = serviceRows(data?.monitoredServices, snapshot?.serviceState);
   const freshness = snapshot?.observedAt ? getTelemetryFreshness(snapshot.observedAt) : "UNKNOWN";
 
   return (
@@ -1349,18 +1353,18 @@ export function ServerHealthCard() {
       className="server-health-card"
       color="white"
       label="03 / Host Infrastructure"
-      title="shared-prod-01"
+      title={host?.name ?? "Host"}
       action={<Link href="/infrastructure">View Infrastructure <Icon name="arrow" /></Link>}
     >
       <Facts
         rows={[
-          ["Host", "shared-prod-01 (AWS Lightsail)"],
+          ["Host", host ? `${host.name} (${host.provider})` : "—"],
           ["Pressure State", <Badge key="pressure" value={pressure} />],
           ["Telemetry Freshness", <Badge key="freshness" value={freshness} />],
           ["System Load (Capacity)", percent(snapshot?.cpuPercent)],
           ["Memory", percent(snapshot?.memoryPercent)],
           ["Disk", percent(snapshot?.diskPercent)],
-          ["Services Status", "6 / 6 Monitored Services Healthy"],
+          ["Services Status", serviceSummary(services)],
         ]}
       />
       <div style={{ marginTop: "1rem" }}>
@@ -1398,7 +1402,10 @@ export function InfrastructureScreen() {
   }, [range]);
 
   const latest = infra?.latestSnapshot;
-  const state = (latest?.serviceState as { pressureState?: string })?.pressureState || "NORMAL";
+  const state = (latest?.serviceState as { pressureState?: string })?.pressureState || (latest ? "NORMAL" : "UNKNOWN");
+  const services = serviceRows(infra?.monitoredServices, latest?.serviceState);
+  const load = loadAverages(latest?.serviceState);
+  const hostName = infra?.host?.name || "—";
 
   return (
     <>
@@ -1406,19 +1413,19 @@ export function InfrastructureScreen() {
         <PageTitle
           eyebrow="Mission control / Infrastructure"
           title="Host Infrastructure"
-          description="Live telemetry, historical aggregation, dependency mapping, and blast-radius for shared-prod-01"
+          description={`Live telemetry, historical aggregation, dependency mapping, and blast-radius for ${infra?.host?.name || "the monitored host"}`}
         />
         <CloudObserverSurface />
         <div className="overview-bento">
-          <Panel className="infra-half-panel" label="01 / Host Overview" title={infra?.host?.name || "shared-prod-01"}>
+          <Panel className="infra-half-panel" label="01 / Host Overview" title={hostName}>
             <Facts
               rows={[
-                ["Provider", infra?.host?.provider || "AWS Lightsail"],
-                ["Region", infra?.host?.region || "ap-southeast-1"],
-                ["Environment", infra?.host?.environment || "production"],
-                ["Hostname", infra?.host?.hostname || "ip-172-26-11-88"],
-                ["Architecture", infra?.host?.architecture || "x86_64"],
-                ["vCPUs", String(infra?.host?.vcpuCount || 2)],
+                ["Provider", infra?.host?.provider || "—"],
+                ["Region", infra?.host?.region || "—"],
+                ["Environment", infra?.host?.environment || "—"],
+                ["Hostname", infra?.host?.hostname || "—"],
+                ["Architecture", infra?.host?.architecture || "—"],
+                ["vCPUs", infra?.host?.vcpuCount ? String(infra.host.vcpuCount) : "—"],
               ]}
             />
           </Panel>
@@ -1431,33 +1438,17 @@ export function InfrastructureScreen() {
                 ["System Load (Capacity)", percent(latest?.cpuPercent)],
                 ["Memory", percent(latest?.memoryPercent)],
                 ["Disk", percent(latest?.diskPercent)],
-                ["Swap Pressure", "< 1% (0% pressure)"],
+                ["Load Average (1m / 5m / 15m)", load ? load.map((value) => value.toFixed(2)).join(" / ") : "—"],
               ]}
             />
           </Panel>
 
           <Panel className="infra-half-panel" label="03 / Host → Project Dependency Mapping" title="Monitored Services & Ownership">
-            <Facts
-              rows={[
-                ["Neo AVO Web (neo-avo-web)", "Project: Neo AVO (ACTIVE / Critical)"],
-                ["Neo AVO Worker (neo-avo-worker)", "Project: Neo AVO (ACTIVE / Critical)"],
-                ["PostgreSQL 16 (postgresql)", "Shared Dependency (ACTIVE / Critical)"],
-                ["Nginx Proxy (nginx)", "Shared Dependency (ACTIVE / Critical)"],
-                ["QRA Worker (qra-commands)", "Project: QRA (ACTIVE / Normal)"],
-                ["Briefing Agent Worker (briefing-agent)", "Project: Briefing Agent (ACTIVE / Normal)"],
-              ]}
-            />
+            <Facts rows={serviceFactRows(services)} />
           </Panel>
 
           <Panel className="infra-half-panel" label="04 / Host Blast-Radius Context" title="Potentially Affected Projects">
-            <Facts
-              rows={[
-                ["Primary Host", "shared-prod-01"],
-                ["Shared Services", "PostgreSQL 16, Nginx Reverse Proxy"],
-                ["Potentially Affected Systems", "Neo AVO, QRA, Briefing Agent"],
-                ["Blast Radius Assessment", "If PostgreSQL or host fails, all 3 colocated projects are potentially impacted"],
-              ]}
-            />
+            <Facts rows={blastRadiusFactRows(hostName, services)} />
           </Panel>
 
           <Panel className="infra-full-panel" label="05 / Resource Trend History & Aggregation" title={`Historical Range: ${range}`}>
@@ -1537,22 +1528,8 @@ export function InfrastructureScreen() {
             ) : null}
           </Panel>
 
-          <Panel className="infra-full-panel" label="06 / Pressure Episodes & Incident Context" title="Historical Episodes">
-            <Facts
-              rows={[
-                ["Historical Episode 1", "Runaway grep (12h 27m duration, Peak ~95.6% CPU, Remediation: SIGTERM PID 27879)"],
-                ["Status", "RECOVERED (Normal state restored)"],
-                [
-                  "Linked Incidents",
-                  <div key="linked-incidents" className="linked-incidents-cta-row">
-                    <span>View Incident Inspector for correlated HOST_RESOURCE_CONTENTION</span>
-                    <Link className="button button-small incident-cta-btn" href="/incidents">
-                      View Correlated Incident <Icon name="arrow" />
-                    </Link>
-                  </div>,
-                ],
-              ]}
-            />
+          <Panel className="infra-full-panel" label="06 / Pressure Episodes & Incident Context" title={`Pressure Episodes: ${range}`}>
+            <Facts rows={episodeFactRows(infra?.history, range, Boolean(infra))} />
           </Panel>
         </div>
       </div>
