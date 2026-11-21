@@ -80,8 +80,9 @@ function ConsoleShell({ children }: { children: ReactNode }) {
     setSearch(false);
   }, [pathname]);
   const signOut = async () => {
-    await fetch("/api/v1/operator/session", { method: "DELETE" }).catch(() => undefined);
-    window.location.assign("/login");
+    const response = await fetch("/api/v1/operator/session", { method: "DELETE" }).catch(() => null);
+    if (response?.ok) window.location.assign("/login");
+    else window.alert("Sign out failed. You are still signed in; check connectivity and retry.");
   };
   const match = (value: string) =>
     value.toLowerCase().includes(query.toLowerCase());
