@@ -134,6 +134,13 @@
       "when": 1795262486004,
       "tag": "0018_project_control_state",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795262542244,
+      "tag": "0019_operator_credentials",
+      "breakpoints": true
     }
   ]
 }

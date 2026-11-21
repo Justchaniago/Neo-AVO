@@ -4,6 +4,9 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().url().optional(),
   DATABASE_SSL: z.enum(["disable", "require"]).default("require"),
+  NEO_AVO_OPERATOR_USERNAME: z.string().min(1).regex(/^[^:]+$/).optional(),
+  NEO_AVO_OPERATOR_PASSWORD: z.string().min(16).optional(),
+  NEO_AVO_ALLOW_PRIVATE_COMMAND_ENDPOINTS: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   TELEGRAM_CHAT_ID: z.string().min(1).optional(),
   NEO_AVO_TELEGRAM_ALLOWED_CHAT_ID: z.string().min(1).optional(),
@@ -36,6 +39,8 @@ export function validateProductionEnv(source: Record<string, string | undefined>
   const env = loadEnv({ ...source, NODE_ENV: "production" });
   const missing: string[] = [];
   if (!env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (!env.NEO_AVO_OPERATOR_USERNAME) missing.push("NEO_AVO_OPERATOR_USERNAME");
+  if (!env.NEO_AVO_OPERATOR_PASSWORD) missing.push("NEO_AVO_OPERATOR_PASSWORD");
   if (options.requireTelegram && (!env.TELEGRAM_BOT_TOKEN || !(env.NEO_AVO_TELEGRAM_ALLOWED_CHAT_ID || env.TELEGRAM_CHAT_ID))) missing.push("TELEGRAM_BOT_TOKEN", "NEO_AVO_TELEGRAM_ALLOWED_CHAT_ID");
   if (options.requireVertex && !env.GOOGLE_CLOUD_PROJECT) missing.push("GOOGLE_CLOUD_PROJECT");
   if (missing.length) throw new Error(`Missing production environment: ${[...new Set(missing)].join(", ")}`);

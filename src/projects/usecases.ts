@@ -7,11 +7,13 @@ import { createProjectToken, hashProjectToken, tokenHashesEqual } from "./creden
 import { findActiveCredential, findProjectById, insertCredential, insertProject, revokeCredentials, updateProject } from "./repository";
 import type { ProjectConfig, ProjectUpdate } from "./types";
 import { encryptCommandSecret } from "../commands/secrets";
+import { isValidCommandEndpoint } from "./command-endpoint";
 import { requestCommand } from "../commands/usecases";
 
 type Db = NodePgDatabase<typeof schema>;
 
 export async function registerProject(db: Db, config: ProjectConfig) {
+  if (config.commandEndpointUrl !== undefined && !isValidCommandEndpoint(config.commandEndpointUrl)) throw new Error("invalid_command_endpoint");
   return db.transaction(async (tx) => {
     const { commandAuthSecret, commandDeliveryMode = "PULL", ...rest } = config;
     const values = { ...rest, commandDeliveryMode };
@@ -38,6 +40,7 @@ export async function getProject(db: Db, projectId: string) {
 }
 
 export async function updateProjectConfig(db: Db, projectId: string, changes: ProjectUpdate) {
+  if (changes.commandEndpointUrl !== undefined && !isValidCommandEndpoint(changes.commandEndpointUrl)) throw new Error("invalid_command_endpoint");
   const { commandAuthSecret, ...values } = changes;
   if (values.commandDeliveryMode === "PUSH" && values.commandEndpointUrl && !commandAuthSecret) {
     const current = await findProjectById(db, projectId);

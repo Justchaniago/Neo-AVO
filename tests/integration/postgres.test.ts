@@ -3,7 +3,7 @@ import pg from "pg";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 
 import { createDb } from "../../src/db/client";
-import { cloudResourceSnapshots, commands, events, incidentEvents, incidents, notifications, opsAnalyses, projectCredentials, projects, tasks } from "../../src/db/schema";
+import { cloudResourceSnapshots, commands, events, incidentEvents, incidents, notifications, operatorCredentials, opsAnalyses, projectCredentials, projects, tasks } from "../../src/db/schema";
 import { registerProject, rotateProjectCredential } from "../../src/projects/usecases";
 import { persistEventBatch } from "../../src/events/usecases";
 import { claimPendingEvent } from "../../src/worker/repository";
@@ -12,7 +12,9 @@ import { acknowledgeIncident, recordIncidentForEvent } from "../../src/incidents
 import { createIncident, resolveIncident } from "../../src/incidents/repository";
 import { incidentTrigger } from "../../src/incidents/types";
 import { and, eq, isNull, ne } from "drizzle-orm";
-import { claimPullCommands } from "../../src/commands/repository";
+import { claimPullCommands, markPushAttempt } from "../../src/commands/repository";
+import { changeOperatorCredentials, findStoredCredentials } from "../../src/operator/credentials";
+import { verifyPassword } from "../../src/operator/password";
 
 const enabled = process.env.RUN_POSTGRES_INTEGRATION === "1" && Boolean(process.env.PG_INTEGRATION_DATABASE_URL);
 const suite = enabled ? describe : describe.skip;
@@ -37,6 +39,19 @@ suite("real PostgreSQL M3/M4 integration", () => {
     projectId = registered.project.id;
   });
 
+  it("stores a changed operator login and requires the current password", async () => {
+    const env = { username: "operator", password: "environment-password-123" };
+    await expect(changeOperatorCredentials(db, { currentPassword: "wrong", newPassword: "first-new-password-1" }, env)).rejects.toThrow("current_password_incorrect");
+    expect(await findStoredCredentials(db)).toBeNull();
+    expect((await changeOperatorCredentials(db, { currentPassword: env.password, newPassword: "first-new-password-1" }, env)).username).toBe("operator");
+    await expect(changeOperatorCredentials(db, { currentPassword: env.password, newPassword: "second-new-password-2" }, env)).rejects.toThrow("current_password_incorrect");
+    expect((await changeOperatorCredentials(db, { currentPassword: "first-new-password-1", newUsername: "ferry", newPassword: "second-new-password-2" }, env)).username).toBe("ferry");
+    const stored = await findStoredCredentials(db);
+    expect(stored?.username).toBe("ferry");
+    expect(await verifyPassword("second-new-password-2", stored!.passwordHash)).toBe(true);
+    expect(await db.select().from(operatorCredentials)).toHaveLength(1);
+  });
+
   it("round-trips fractional Cloud Observer CPU utilization", async () => {
     const observedAt = new Date("2026-09-15T05:03:09.391Z");
     await db.insert(cloudResourceSnapshots).values({
@@ -50,6 +65,15 @@ suite("real PostgreSQL M3/M4 integration", () => {
   });
 
   afterAll(async () => { await pool.end(); });
+
+  it("persists endpoint refusals as terminal FAILED without retrying", async () => {
+    const [command] = await db.insert(commands).values({ commandId: "cmd-refused-endpoint", projectId, environment: "production", capability: "task.retry", arguments: { taskId: "task-1" }, requestedAt: new Date(), validUntil: new Date(Date.now() + 60_000), deliveryMode: "PUSH", deliveryAttempts: 1, claimToken: "refused-claim" }).returning();
+    const failed = await markPushAttempt(db, command.id, "refused-claim", false, "command_endpoint_refused: private_or_reserved_address", true);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.failureReason).toBe("command_endpoint_refused: private_or_reserved_address");
+    expect(failed.nextDeliveryAt).toBeNull();
+    expect(failed.claimToken).toBeNull();
+  });
 
   it("applies every migration and preserves credential uniqueness through rotation", async () => {
     const first = await db.select().from(projectCredentials).where(eq(projectCredentials.projectId, projectId));

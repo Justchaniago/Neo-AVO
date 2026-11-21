@@ -14,7 +14,7 @@ PULL projects authenticate with their M1 project credential and can only fetch t
 
 PUSH projects configure an HTTPS endpoint and a distinct outbound secret. The secret is encrypted with AES-256-GCM before storage; `COMMAND_ENCRYPTION_KEY` is a runtime-only 32-byte hex key. The worker claims and persists delivery state before making network calls, sends a bounded envelope outside the transaction, and records failures without affecting events, projections, incidents, or notifications.
 
-The private single-operator deployment assumption applies to command creation (`POST /api/v1/commands`); M7 does not add RBAC. Project callbacks remain credential-authenticated and independently authorized by project/environment scope.
+Command creation (`POST /api/v1/commands`) requires operator HTTP Basic authentication over HTTPS; this is single-operator authentication, not RBAC. Project callbacks remain Bearer-credential-authenticated and independently authorized by project/environment scope, without operator Basic auth. PUSH endpoints are checked for private/reserved DNS answers and IP literals before delivery; redirects are not followed. See the M8 runbook for configuration and local-mock exceptions.
 
 ## Expiration and independence
 

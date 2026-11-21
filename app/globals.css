@@ -3055,3 +3055,17 @@ dialog::backdrop {
     color: var(--white);
   }
 }
+.operator-credentials-form {
+  display: grid;
+  gap: 16px;
+  max-width: 420px;
+  margin-top: 24px;
+}
+.operator-credentials-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.operator-credentials-form .form-error {
+  color: var(--status-failed);
+}

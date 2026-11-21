@@ -1,3 +1,8 @@
+# Terminate/enforce HTTPS before using Basic auth; this HTTP-only sample is not a TLS setup.
+# Next.js middleware protects operator routes. Do not add blanket auth_basic here:
+# project-token routes and /api/health must remain reachable without operator credentials.
+# Preserve Authorization, disable CDN/proxy caching for authenticated responses,
+# and keep the upstream port private. See docs/M8_PRODUCTION_RUNBOOK.md.
 server {
     listen 80;
     server_name neo-avo.chaniago.me;
