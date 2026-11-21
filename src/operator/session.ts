@@ -29,4 +29,10 @@ export function verifySessionToken(auth: OperatorAuth, token: string | undefined
   return timingSafeEqual(Buffer.from(match[2]), Buffer.from(sign(auth, expiresAt).toString("base64url")));
 }
 
+/** A well-formed, unexpired token with a wrong signature is a guess at the login, unlike a cookie that simply ran out. */
+export function isSessionGuess(token: string | undefined, now = Date.now()) {
+  const match = token?.match(/^v1\.(\d{1,16})\.[A-Za-z0-9_-]{43}$/);
+  return Boolean(match && Number(match[1]) > now);
+}
+
 export { safeNextPath } from "./next-path";
