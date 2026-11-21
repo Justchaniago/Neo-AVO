@@ -25,7 +25,8 @@ export function verifySessionToken(auth: OperatorAuth, token: string | undefined
   if (!match) return false;
   const expiresAt = Number(match[1]);
   if (expiresAt <= now) return false;
-  return timingSafeEqual(Buffer.from(match[2], "base64url"), sign(auth, expiresAt));
+  // Compared as text: the last base64url character has spare bits, so decoding would accept altered tokens.
+  return timingSafeEqual(Buffer.from(match[2]), Buffer.from(sign(auth, expiresAt).toString("base64url")));
 }
 
 export { safeNextPath } from "./next-path";

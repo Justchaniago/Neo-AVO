@@ -66,7 +66,7 @@ describe("operator authentication", () => {
     expect((await request(token, { method: "POST", headers: { "sec-fetch-site": "same-origin" } })).headers.get("x-middleware-next")).toBe("1");
     expect((await request(token, { method: "POST", headers: { "sec-fetch-site": "cross-site" } })).status).toBe(403);
     expect((await request(createSessionToken(auth, Date.now() - SESSION_TTL_SECONDS * 1000 - 1))).status).toBe(401);
-    expect((await request(token.slice(0, -1) + (token.endsWith("A") ? "B" : "A"))).status).toBe(401);
+    for (const last of "ABCDEFGH") if (!token.endsWith(last)) expect((await request(token.slice(0, -1) + last)).status).toBe(401);
     expect((await request(token.replace(/^v1\.\d+/, `v1.${Date.now() + 10 * SESSION_TTL_SECONDS * 1000}`))).status).toBe(401);
     // Changing the login signs existing sessions out.
     expect((await request(createSessionToken({ ...auth, password: "another-test-password-456" }))).status).toBe(401);
