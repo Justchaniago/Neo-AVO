@@ -1,5 +1,6 @@
 "use client";
 
+import { OPERATOR_PASSWORD_MIN_LENGTH } from "../../src/config/operator-password";
 import { useState, type FormEvent } from "react";
 import { useRead } from "./data";
 import { ErrorState, Facts, Loading, Time } from "./primitives";
@@ -8,7 +9,7 @@ type OperatorAccount = { username: string; source: "settings" | "environment"; u
 
 const errors: Record<string, string> = {
   current_password_incorrect: "Current password is incorrect.",
-  invalid_credentials_request: "New password must be at least 16 characters; the username cannot contain a colon.",
+  invalid_credentials_request: `New password must be at least ${OPERATOR_PASSWORD_MIN_LENGTH} characters; the username cannot contain a colon.`,
 };
 
 export function OperatorCredentialsControl() {
@@ -68,12 +69,12 @@ export function OperatorCredentialsControl() {
           <input autoComplete="current-password" onChange={(event) => setCurrentPassword(event.target.value)} required type="password" value={currentPassword} />
         </label>
         <label>
-          New password (at least 16 characters)
-          <input autoComplete="new-password" minLength={16} onChange={(event) => setNewPassword(event.target.value)} required type="password" value={newPassword} />
+          New password (at least {OPERATOR_PASSWORD_MIN_LENGTH} characters)
+          <input autoComplete="new-password" minLength={OPERATOR_PASSWORD_MIN_LENGTH} onChange={(event) => setNewPassword(event.target.value)} required type="password" value={newPassword} />
         </label>
         <label>
           Confirm new password
-          <input autoComplete="new-password" minLength={16} onChange={(event) => setConfirmPassword(event.target.value)} required type="password" value={confirmPassword} />
+          <input autoComplete="new-password" minLength={OPERATOR_PASSWORD_MIN_LENGTH} onChange={(event) => setConfirmPassword(event.target.value)} required type="password" value={confirmPassword} />
         </label>
         <button className="button" disabled={busy} type="submit">{busy ? "Saving…" : "Change login"}</button>
         {message && <p className={message.ok ? "muted" : "form-error"} role={message.ok ? "status" : "alert"}>{message.text}</p>}

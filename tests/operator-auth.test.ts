@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 import { middleware } from "../middleware";
 import { DELETE as signOut, POST as signIn } from "../app/api/v1/operator/session/route";
+import { ATTEMPT_WINDOW_MS, MAX_FAILED_ATTEMPTS, clearFailedAttempts, retryAfterSeconds } from "../src/operator/attempts";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, createSessionToken, safeNextPath, verifySessionToken } from "../src/operator/session";
 import { credentialsEqual, decodeBasicCredentials, isPublicRequest } from "../src/config/operator-auth";
 
@@ -14,7 +15,10 @@ describe("operator authentication", () => {
     vi.stubEnv("NEO_AVO_OPERATOR_USERNAME", "operator");
     vi.stubEnv("NEO_AVO_OPERATOR_PASSWORD", password);
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    clearFailedAttempts();
+  });
 
   it.each([
     ["GET", "/api/health"], ["POST", "/api/v1/events"], ["GET", "/api/v1/commands/pending"],
@@ -73,6 +77,19 @@ describe("operator authentication", () => {
     expect(verifySessionToken({ kind: "unconfigured" }, token)).toBe(false);
   });
 
+  it("limits failed sign-ins per client", async () => {
+    const headers = { "x-real-ip": "203.0.113.9" };
+    const post = (body: unknown, ip = headers) => signIn(new NextRequest("https://neo.example/api/v1/operator/session", { method: "POST", headers: ip, body: JSON.stringify(body) }));
+    for (let attempt = 0; attempt < MAX_FAILED_ATTEMPTS; attempt += 1) expect((await post({ username: "operator", password: "wrong" })).status).toBe(401);
+    const limited = await post({ username: "operator", password });
+    expect(limited.status).toBe(429);
+    expect(Number(limited.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect((await middleware(new NextRequest("https://neo.example/api/v1/projects", { headers: { ...headers, authorization: basic(`operator:${password}`) } }))).status).toBe(429);
+    // Other clients and existing sessions are not affected.
+    expect((await post({ username: "operator", password }, { "x-real-ip": "203.0.113.10" })).status).toBe(200);
+    expect(retryAfterSeconds("203.0.113.9", Date.now() + ATTEMPT_WINDOW_MS + 1)).toBe(0);
+  });
+
   it("signs in and out through the session route", async () => {
     const post = (body: unknown) => signIn(new NextRequest("https://neo.example/api/v1/operator/session", { method: "POST", body: JSON.stringify(body) }));
     expect((await post({ username: "operator", password: "wrong" })).status).toBe(401);
@@ -96,7 +113,7 @@ describe("operator authentication", () => {
     expect((await middleware(new NextRequest("https://neo.example/api/v1/projects", { headers: { authorization } }))).status).toBe(401);
   });
 
-  it.each([undefined, "", "short"])("fails closed when the password is %s", async (value) => {
+  it.each([undefined, "", "abcd"])("fails closed when the password is %s", async (value) => {
     vi.stubEnv("NEO_AVO_OPERATOR_PASSWORD", value);
     const response = await middleware(new NextRequest("https://neo.example/api/v1/projects"));
     expect(response.status).toBe(503);

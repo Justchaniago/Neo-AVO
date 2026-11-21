@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { decodeBasicCredentials, isPublicRequest } from "./src/config/operator-auth";
+import { clientKey, recordFailedAttempt, retryAfterSeconds } from "./src/operator/attempts";
 import { resolveOperatorAuth, verifyOperatorCredentials } from "./src/operator/credentials";
 import { SESSION_COOKIE, verifySessionToken } from "./src/operator/session";
 
@@ -24,7 +25,13 @@ export async function middleware(request: NextRequest) {
   }
   // Non-browser administrative clients keep using HTTP Basic credentials.
   const supplied = decodeBasicCredentials(request.headers.get("authorization"));
-  if (supplied && (await verifyOperatorCredentials(auth, supplied))) return NextResponse.next();
+  if (supplied) {
+    const client = clientKey(request);
+    const retryAfter = retryAfterSeconds(client);
+    if (retryAfter) return NextResponse.json({ error: "too_many_attempts" }, { status: 429, headers: { ...noStore, "Retry-After": String(retryAfter) } });
+    if (await verifyOperatorCredentials(auth, supplied)) return NextResponse.next();
+    recordFailedAttempt(client);
+  }
   if (read && !pathname.startsWith("/api/")) {
     const login = request.nextUrl.clone();
     login.pathname = "/login";

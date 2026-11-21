@@ -6,6 +6,7 @@ import { safeNextPath } from "../../src/operator/next-path";
 
 const errors: Record<string, string> = {
   invalid_credentials: "Wrong username or password.",
+  too_many_attempts: "Too many failed attempts. Wait a few minutes and retry.",
   operator_auth_not_configured: "Operator login is not configured on this server.",
   operator_auth_unavailable: "The login service is unavailable. Retry in a moment.",
 };

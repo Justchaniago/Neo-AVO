@@ -1,11 +1,13 @@
 import { z } from "zod";
 
+import { OPERATOR_PASSWORD_MIN_LENGTH } from "./operator-password";
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().url().optional(),
   DATABASE_SSL: z.enum(["disable", "require"]).default("require"),
   NEO_AVO_OPERATOR_USERNAME: z.string().min(1).regex(/^[^:]+$/).optional(),
-  NEO_AVO_OPERATOR_PASSWORD: z.string().min(16).optional(),
+  NEO_AVO_OPERATOR_PASSWORD: z.string().min(OPERATOR_PASSWORD_MIN_LENGTH).optional(),
   NEO_AVO_ALLOW_PRIVATE_COMMAND_ENDPOINTS: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   TELEGRAM_CHAT_ID: z.string().min(1).optional(),

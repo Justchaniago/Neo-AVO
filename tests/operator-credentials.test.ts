@@ -93,7 +93,8 @@ describe("stored operator credentials", () => {
   });
 
   it("validates change requests", () => {
-    expect(changeCredentialsSchema.safeParse({ currentPassword: "x", newPassword: "short" }).success).toBe(false);
+    expect(changeCredentialsSchema.safeParse({ currentPassword: "x", newPassword: "abcd" }).success).toBe(false);
+    expect(changeCredentialsSchema.safeParse({ currentPassword: "x", newPassword: "abcde" }).success).toBe(true);
     expect(changeCredentialsSchema.safeParse({ currentPassword: "x", newPassword: storedPassword, newUsername: "bad:name" }).success).toBe(false);
     expect(changeCredentialsSchema.safeParse({ currentPassword: "x", newPassword: storedPassword, newUsername: "ferry" }).success).toBe(true);
   });
