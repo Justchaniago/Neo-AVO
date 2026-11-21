@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Icon } from "../icons";
 import { useDashboard, useRead } from "../data";
 import { type IncidentDetail } from "../model";
-import { Badge, Empty, ErrorState, Facts, Loading, PageTitle, Time } from "../primitives";
+import { Badge, Empty, ErrorState, Facts, Loading, PageTitle, Time, plural } from "../primitives";
 
 function MobileSelectedAssessmentDetail({ id }: { id: string }) {
   const { revision, refresh, projects } = useDashboard();
@@ -67,7 +67,7 @@ function MobileSelectedAssessmentDetail({ id }: { id: string }) {
       : [
           `Linked incident: ${i.id.slice(0, 8)}`,
           `Dependency: ${i.dependencyKey || "system:host"}`,
-          `Occurrences: ${i.occurrenceCount} event(s)`,
+          `Occurrences: ${plural(i.occurrenceCount, "event")}`,
         ];
 
   const recoveryText =

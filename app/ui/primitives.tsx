@@ -135,11 +135,18 @@ export function Time({ value }: { value?: string | null }) {
     <span>No evidence</span>
   );
 }
+/** A percentage for display; missing readings show a dash without a unit. */
+export function percent(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value * 10) / 10}%` : "—";
+}
+export function plural(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
 export function Facts({ rows }: { rows: [string, ReactNode][] }) {
   return (
     <dl className="facts">
-      {rows.map(([name, value]) => (
-        <div key={name}>
+      {rows.map(([name, value], index) => (
+        <div key={`${index}:${name}`}>
           <dt>{name}</dt>
           <dd>{value ?? "Not available"}</dd>
         </div>

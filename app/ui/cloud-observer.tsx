@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { read } from "./read-client";
-import { Badge, ErrorState, Facts, Loading, Panel, Time } from "./primitives";
+import { Badge, ErrorState, Facts, Loading, Panel, Time, percent } from "./primitives";
 import {
   capabilityObservedAt,
   capabilityStatus,
@@ -10,7 +10,6 @@ import {
   costFor,
   creditFor,
   financialDisplay,
-  formatMetric,
   formatMoney,
   resourcesFor,
   serviceBreakdown,
@@ -57,7 +56,7 @@ function ResourcePanel({ data, provider }: { data: CloudObserverData; provider: 
             <div className="cloud-resource-row" key={`${resource.provider}-${resource.resourceId}`}>
               <strong>{String(resource.metadata.name ?? resource.resourceId)}</strong>
               <span>{resource.region ?? "Region unknown"} · {resource.status}</span>
-              <span>CPU {formatMetric(resource.cpuUtilization, "%")} · {resource.freshness}</span>
+              <span>CPU {percent(resource.cpuUtilization)} · {resource.freshness}</span>
             </div>
           ))}
         </div>

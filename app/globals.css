@@ -181,6 +181,23 @@ select {
 input {
   width: 100%;
 }
+input[type="checkbox"],
+input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+.check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  cursor: pointer;
+}
 h1,
 h2,
 h3,
@@ -1153,10 +1170,17 @@ main {
   margin: 0;
 }
 .attention-toolbar > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 11px;
+  font-weight: 700;
+}
+.attention-toolbar input[type="search"] {
+  width: 240px;
 }
 .attention-toolbar select {
-  margin-left: 8px;
+  margin: 0;
 }
 .tabs {
   display: flex;
