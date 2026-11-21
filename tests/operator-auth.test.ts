@@ -85,12 +85,14 @@ describe("operator authentication", () => {
     expect(limited.status).toBe(429);
     expect(Number(limited.headers.get("retry-after"))).toBeGreaterThan(0);
     expect((await middleware(new NextRequest("https://neo.example/api/v1/projects", { headers: { ...headers, authorization: basic(`operator:${password}`) } }))).status).toBe(429);
+    // Failed passwords do not lock out a valid session from the same address.
+    const session = createSessionToken({ kind: "env", username: "operator", password });
+    expect((await middleware(new NextRequest("https://neo.example/api/v1/projects", { headers: { ...headers, cookie: `${SESSION_COOKIE}=${session}` } }))).status).toBe(200);
     clearFailedAttempts();
     // Forged session cookies are password guesses too.
     const forged = () => middleware(new NextRequest("https://neo.example/api/v1/projects", { headers: { ...headers, cookie: `${SESSION_COOKIE}=${createSessionToken({ kind: "env", username: "operator", password: "guess" })}` } }));
     for (let attempt = 0; attempt < MAX_FAILED_ATTEMPTS; attempt += 1) expect((await forged()).status).toBe(401);
     expect((await forged()).status).toBe(429);
-    expect((await post({ username: "operator", password })).status).toBe(429);
     // A burst is counted before it is checked.
     clearFailedAttempts();
     const burst = await Promise.all(Array.from({ length: MAX_FAILED_ATTEMPTS + 5 }, () => post({ username: "operator", password: "wrong" })));

@@ -28,15 +28,17 @@ export async function middleware(request: NextRequest) {
   const read = request.method === "GET" || request.method === "HEAD";
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const client = clientKey(request);
-  // The session key comes from the login, so a forged cookie is a password guess and is limited like one.
-  const limited = token ? retryAfterSeconds(client) : 0;
+  // The session key comes from the login, so a forged cookie is a password guess. Forged cookies have their own
+  // budget: mistyped passwords from the same address must not lock out a valid session.
+  const cookieClient = `cookie:${client}`;
+  const limited = token ? retryAfterSeconds(cookieClient) : 0;
   if (limited) return tooManyAttempts(limited);
   if (verifySessionToken(auth, token)) {
     // The session cookie is sent by the browser, so cross-site writes are refused.
     if (!read && request.headers.get("sec-fetch-site") === "cross-site") return NextResponse.json({ error: "cross_site_request" }, { status: 403, headers: noStore });
     return NextResponse.next();
   }
-  if (isSessionGuess(token)) recordFailedAttempt(client);
+  if (isSessionGuess(token)) recordFailedAttempt(cookieClient);
   // Non-browser administrative clients keep using HTTP Basic credentials.
   const supplied = decodeBasicCredentials(request.headers.get("authorization"));
   if (supplied) {
