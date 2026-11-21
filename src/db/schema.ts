@@ -39,6 +39,11 @@ export const projects = pgTable("projects", {
   criticality: text("criticality").notNull().default("normal"),
   targetRtoMinutes: integer("target_rto_minutes"),
   lastHealthEventAt: timestamp("last_health_event_at", { withTimezone: true }),
+  controlState: text("control_state").notNull().default("ACTIVE"),
+  pausedAt: timestamp("paused_at", { withTimezone: true }),
+  pausedUntil: timestamp("paused_until", { withTimezone: true }),
+  pauseReason: text("pause_reason"),
+  lastResumedAt: timestamp("last_resumed_at", { withTimezone: true }),
 });
 
 export const projectCredentials = pgTable(

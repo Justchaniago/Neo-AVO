@@ -15,6 +15,7 @@ import {
   tone,
 } from "./model";
 import { QraAuditControl } from "./qra-audit-control";
+import { ProjectControlBar } from "./project-control-bar";
 import { BriefingRegenerateControl } from "./briefing-regenerate-control";
 import {
   Availability,
@@ -58,7 +59,7 @@ function Refresh() {
 }
 function ActivitySurface({ compact = false }: { compact?: boolean }) {
   const activity = useActivity();
-  const { refresh } = useDashboard();
+  const { projects, refresh } = useDashboard();
   const [query, setQuery] = useState<string | null>(null);
   useEffect(() => {
     setQuery(new URLSearchParams(window.location.search).get("q") || "");
@@ -70,12 +71,19 @@ function ActivitySurface({ compact = false }: { compact?: boolean }) {
       </ErrorState>
     );
   if (!activity.loaded || query === null) return <Loading />;
+  const pausedProjectNames = new Set(
+    (projects.data?.projects ?? [])
+      .filter((p) => p.controlState === "PAUSED" || p.controlState === "PAUSE_REQUESTED")
+      .map((p) => p.name)
+  );
+  const visibleFailed = activity.failed.filter((name) => !pausedProjectNames.has(name));
+
   return (
     <>
       {activity.error && <ErrorState retry={refresh}>Showing previously received activity. Updates are unavailable.</ErrorState>}
-      {activity.failed.length > 0 && (
+      {visibleFailed.length > 0 && (
         <ErrorState retry={refresh}>
-          Updates unavailable for {activity.failed.join(", ")}. Results may be partial or out of date.
+          Updates unavailable for {visibleFailed.join(", ")}. Results may be partial or out of date.
         </ErrorState>
       )}
       <ActivityFeed
@@ -364,6 +372,7 @@ export function ProjectScreen({ id }: { id: string }) {
           {tab === "Summary" && (
             <div className="workspace-grid">
               <div className="span-full">
+                <ProjectControlBar detail={result.data} />
                 <QraAuditControl detail={result.data} />
                 <BriefingRegenerateControl detail={result.data} />
               </div>
@@ -714,7 +723,7 @@ export function IncidentScreen({ id }: { id: string }) {
 }
 export function AgentsScreen() {
   const activity = useActivity();
-  const { refresh } = useDashboard();
+  const { projects, refresh } = useDashboard();
   const agentEvents = activity.events.filter((e) =>
     e.type.startsWith("agent."),
   );
@@ -1151,7 +1160,39 @@ export function IntelligenceScreen() {
 }
 export function SettingsScreen() {
   const [tab, setTab] = useState("Projects");
+  const [resolvingAll, setResolvingAll] = useState(false);
+  const [resolveAllMessage, setResolveAllMessage] = useState<string | null>(null);
   const { projects, health, refresh } = useDashboard();
+
+  async function handleResolveAll() {
+    setResolvingAll(true);
+    setResolveAllMessage(null);
+    try {
+      const response = await fetch("/api/v1/dashboard/incidents/resolve-all", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ resolutionNote: "Bulk resolved from Settings" }),
+      });
+      const data = (await response.json()) as {
+        resolvedIncidentCount?: number;
+        clearedEventCount?: number;
+        message?: string;
+        error?: string;
+      };
+      if (!response.ok) {
+        setResolveAllMessage(data.message || data.error || "Failed to resolve issues and events.");
+      } else {
+        setResolveAllMessage(
+          `Done: ${data.resolvedIncidentCount ?? 0} issue(s) marked read & resolved, ${data.clearedEventCount ?? 0} hanging event(s) cleared.`,
+        );
+        refresh();
+      }
+    } catch (error) {
+      setResolveAllMessage(error instanceof Error ? error.message : "Failed to resolve issues and events.");
+    } finally {
+      setResolvingAll(false);
+    }
+  }
   return (
     <>
       <PageTitle
@@ -1234,28 +1275,51 @@ export function SettingsScreen() {
               </p>
             </>
           )}
-          {tab === "System" &&
-            (health.error ? (
-              <ErrorState retry={refresh}>
-                Web/database health check unavailable or degraded. Worker and
-                backup status cannot be inferred.
-              </ErrorState>
-            ) : !health.data ? (
-              <Loading />
-            ) : (
-              <Facts
-                rows={[
-                  [
-                    "Web health",
-                    health.data.status === "ok" ? "Available" : "Degraded",
-                  ],
-                  ["Database connectivity", health.data.checks.database],
-                  ["Worker health", "Telemetry unavailable"],
-                  ["Backup state", "Telemetry unavailable"],
-                  ["Environment / version", "Telemetry unavailable"],
-                ]}
-              />
-            ))}
+          {tab === "System" && (
+            <>
+              {health.error ? (
+                <ErrorState retry={refresh}>
+                  Web/database health check unavailable or degraded. Worker and
+                  backup status cannot be inferred.
+                </ErrorState>
+              ) : !health.data ? (
+                <Loading />
+              ) : (
+                <Facts
+                  rows={[
+                    [
+                      "Web health",
+                      health.data.status === "ok" ? "Available" : "Degraded",
+                    ],
+                    ["Database connectivity", health.data.checks.database],
+                    ["Worker health", "Telemetry unavailable"],
+                    ["Backup state", "Telemetry unavailable"],
+                    ["Environment / version", "Telemetry unavailable"],
+                  ]}
+                />
+              )}
+              <div className="setting-row">
+                <div>
+                  <h3>Resolve all issues &amp; error events</h3>
+                  <p className="muted">
+                    Mark all open/acknowledged issues as read &amp; resolved and
+                    clear hanging error events.
+                  </p>
+                  {resolveAllMessage ? (
+                    <p className="muted">{resolveAllMessage}</p>
+                  ) : null}
+                </div>
+                <button
+                  className="button"
+                  disabled={resolvingAll}
+                  onClick={handleResolveAll}
+                  type="button"
+                >
+                  {resolvingAll ? "Resolving..." : "Mark All Read & Resolved"}
+                </button>
+              </div>
+            </>
+          )}
         </Panel>
       </div>
     </>
