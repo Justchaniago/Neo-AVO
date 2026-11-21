@@ -37,16 +37,16 @@ export function ProjectCard({ project: p }: { project: Project }) {
   const isPaused = p.controlState === "PAUSED" || p.controlState === "PAUSE_REQUESTED";
   return (
     <article className={`project-card${isPaused ? " project-card--paused" : ""}`}>
-      {isPaused && (
-        <div className="project-paused-sign" aria-label="Project paused">
-          {p.controlState === "PAUSE_REQUESTED" ? "PAUSE REQUESTED" : "PAUSED"}
-        </div>
-      )}
       <div className="project-card-top">
         <span className="project-monogram">
           {p.name.slice(0, 2).toUpperCase()}
         </span>
         <span className="eyebrow">{p.environment}</span>
+        {isPaused && (
+          <span className="project-paused-sign">
+            {p.controlState === "PAUSE_REQUESTED" ? "PAUSE REQUESTED" : "PAUSED"}
+          </span>
+        )}
         <Link
           className="square-link"
           href={`/projects/${p.id}`}

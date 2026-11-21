@@ -7,6 +7,8 @@ import { Badge, Facts, PageTitle, percent } from "../primitives";
 import { getTelemetryFreshness } from "../model";
 import { ResourceLineChart } from "../resource-chart";
 import { CloudObserverSurface } from "../cloud-observer";
+import { blastRadiusFactRows, episodeFactRows, serviceFactRows } from "../infrastructure-panels";
+import { loadAverages, serviceRows, serviceSummary, type PressureEpisode } from "../../../src/ops/infrastructure-view";
 
 export function MobileInfrastructure() {
   const [range, setRange] = useState<"1h" | "6h" | "24h" | "7d" | "30d">("24h");
@@ -15,14 +17,19 @@ export function MobileInfrastructure() {
     monitoredServices?: Array<{ name: string; displayName: string; projectAssociation: string; criticality: string; status?: string }>;
     latestSnapshot?: { cpuPercent: number; memoryPercent: number; diskPercent: number; serviceState?: Record<string, unknown>; observedAt: string };
     history?: Array<{ cpuPercent: number; memoryPercent: number; diskPercent: number; pressureStatePeak?: string; observedAt: string }>;
+    episodes?: PressureEpisode[];
   } | null>(null);
+  const [infraFailed, setInfraFailed] = useState(false);
 
   useEffect(() => {
     const load = () => {
       fetch(`/api/v1/infrastructure?range=${range}`)
-        .then((res) => res.json())
-        .then(setInfra)
-        .catch(() => null);
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`infrastructure ${res.status}`))))
+        .then((data) => {
+          setInfra(data);
+          setInfraFailed(false);
+        })
+        .catch(() => setInfraFailed(true));
     };
     load();
     const interval = setInterval(load, 5000);
@@ -30,7 +37,10 @@ export function MobileInfrastructure() {
   }, [range]);
 
   const latest = infra?.latestSnapshot;
-  const state = (latest?.serviceState as { pressureState?: string })?.pressureState || "NORMAL";
+  const state = (latest?.serviceState as { pressureState?: string })?.pressureState || (latest ? "NORMAL" : "UNKNOWN");
+  const services = serviceRows(infra?.monitoredServices, latest?.serviceState);
+  const load = loadAverages(latest?.serviceState);
+  const hostName = infra?.host?.name || "—";
   const freshness = latest?.observedAt ? getTelemetryFreshness(latest.observedAt) : "UNKNOWN";
 
   return (
@@ -39,7 +49,7 @@ export function MobileInfrastructure() {
       <PageTitle
         eyebrow="Mission control / Infrastructure"
         title="Host Telemetry"
-        description="Live resource metrics, historical telemetry, and blast-radius context for shared-prod-01."
+        description={`Live resource metrics, historical telemetry, and blast-radius context for ${infra?.host?.name || "the monitored host"}.`}
       />
       <CloudObserverSurface mobile />
 
@@ -53,11 +63,12 @@ export function MobileInfrastructure() {
           </div>
           <Facts
             rows={[
-              ["Host", `${infra?.host?.name || "shared-prod-01"} (${infra?.host?.provider || "AWS Lightsail"})`],
+              ["Host", infra?.host ? `${infra.host.name} (${infra.host.provider})` : "—"],
               ["System Load (Capacity)", percent(latest?.cpuPercent)],
               ["Memory Usage", percent(latest?.memoryPercent)],
               ["Disk Usage", percent(latest?.diskPercent)],
-              ["Swap Pressure", "< 1% (0% pressure)"],
+              ["Load Average (1m / 5m / 15m)", load ? load.map((value) => value.toFixed(2)).join(" / ") : "—"],
+              ["Services", serviceSummary(services)],
             ]}
           />
         </div>
@@ -85,7 +96,11 @@ export function MobileInfrastructure() {
               ? `Source: ${
                   range === "7d" ? "5-minute aggregates" : range === "30d" ? "1-hour aggregates" : "raw 30s snapshots"
                 } (${infra.history.length} points)`
-              : "Loading telemetry history…"}
+              : infraFailed
+                ? "Resource history could not be loaded. Retrying…"
+                : infra
+                  ? `No resource history has been recorded for the last ${range}.`
+                  : "Loading telemetry history…"}
           </p>
 
           {infra?.history && infra.history.length > 0 ? (
@@ -132,9 +147,7 @@ export function MobileInfrastructure() {
                 }}
               />
             </div>
-          ) : (
-            <p className="muted">No historical trend snapshots available for this range.</p>
-          )}
+          ) : null}
         </div>
       </section>
 
@@ -142,16 +155,7 @@ export function MobileInfrastructure() {
       <section className="mobile-section">
         <h2 className="mobile-section-title">03 / Services & Ownership</h2>
         <div className="mobile-card">
-          <Facts
-            rows={[
-              ["Neo AVO Web (neo-avo-web)", "Project: Neo AVO (ACTIVE / Critical)"],
-              ["Neo AVO Worker (neo-avo-worker)", "Project: Neo AVO (ACTIVE / Critical)"],
-              ["PostgreSQL 16 (postgresql)", "Shared Dependency (ACTIVE / Critical)"],
-              ["Nginx Proxy (nginx)", "Shared Dependency (ACTIVE / Critical)"],
-              ["QRA Worker (qra-commands)", "Project: QRA (ACTIVE / Normal)"],
-              ["Briefing Agent Worker (briefing-agent)", "Project: Briefing Agent (ACTIVE / Normal)"],
-            ]}
-          />
+          <Facts rows={serviceFactRows(services)} />
         </div>
       </section>
 
@@ -159,36 +163,15 @@ export function MobileInfrastructure() {
       <section className="mobile-section">
         <h2 className="mobile-section-title">04 / Blast-Radius Context</h2>
         <div className="mobile-card">
-          <Facts
-            rows={[
-              ["Primary Host", "shared-prod-01"],
-              ["Shared Dependencies", "PostgreSQL 16, Nginx Reverse Proxy"],
-              ["Colocated Projects", "Neo AVO, QRA, Briefing Agent"],
-              ["Blast Radius Risk", "Host or DB failure impacts all 3 colocated projects."],
-            ]}
-          />
+          <Facts rows={blastRadiusFactRows(hostName, services)} />
         </div>
       </section>
 
       {/* 05. Pressure Episodes & Incident Context */}
       <section className="mobile-section">
-        <h2 className="mobile-section-title">05 / Historical Episodes</h2>
+        <h2 className="mobile-section-title">05 / Pressure Episodes ({range})</h2>
         <div className="mobile-card">
-          <Facts
-            rows={[
-              ["Historical Episode 1", "Runaway grep (12h 27m duration, Peak ~95.6% CPU, Remediation: SIGTERM PID 27879)"],
-              ["Status", "RECOVERED (Normal state restored)"],
-              [
-                "Linked Incidents",
-                <div key="linked-incidents-mob" className="linked-incidents-cta-row">
-                  <span>View Incident Inspector for correlated HOST_RESOURCE_CONTENTION</span>
-                  <Link className="button button-small incident-cta-btn" href="/incidents">
-                    View Correlated Incident <Icon name="arrow" />
-                  </Link>
-                </div>,
-              ],
-            ]}
-          />
+          <Facts rows={episodeFactRows(infra?.episodes, range, Boolean(infra))} />
         </div>
       </section>
     </div>
