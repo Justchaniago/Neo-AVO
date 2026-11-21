@@ -14,7 +14,14 @@ export async function monitorProjectHealth(db: Db, now = new Date()) {
   await db.transaction(async (tx) => {
     const projects = await listProjects(tx);
     for (const project of projects) {
-      const nextAvailability = availabilityAt(project, now);
+      if (project.controlState === "PAUSED" || project.controlState === "PAUSE_REQUESTED") {
+        continue;
+      }
+      const effectiveLastSeen =
+        project.lastResumedAt && (!project.lastSeenAt || project.lastResumedAt > project.lastSeenAt)
+          ? project.lastResumedAt
+          : project.lastSeenAt;
+      const nextAvailability = availabilityAt({ ...project, lastSeenAt: effectiveLastSeen }, now);
       let nextHealth = healthAt(project, now);
       let nextBusiness = businessHealthAt(project, now);
 

@@ -1,5 +1,5 @@
 {
-  "id": "c37cbadf-d53f-4036-a6f5-d74477936c50",
+  "id": "52ea4e57-4050-478d-aa81-941e9ac1f92e",
   "prevId": "156f7565-beef-4c45-ba9b-e39918c9842a",
   "version": "7",
   "dialect": "postgresql",
@@ -1547,44 +1547,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.operator_credentials": {
-      "name": "operator_credentials",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "username": {
-          "name": "username",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "password_hash": {
-          "name": "password_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.ops_analyses": {
       "name": "ops_analyses",
       "schema": "",
@@ -2370,6 +2332,37 @@
         },
         "last_health_event_at": {
           "name": "last_health_event_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "control_state": {
+          "name": "control_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ACTIVE'"
+        },
+        "paused_at": {
+          "name": "paused_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paused_until": {
+          "name": "paused_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pause_reason": {
+          "name": "pause_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_resumed_at": {
+          "name": "last_resumed_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

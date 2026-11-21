@@ -1,3 +1,5 @@
+import { and, inArray, isNotNull, lte } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import * as schema from "../db/schema";
@@ -6,6 +8,7 @@ import { findActiveCredential, findProjectById, insertCredential, insertProject,
 import type { ProjectConfig, ProjectUpdate } from "./types";
 import { encryptCommandSecret } from "../commands/secrets";
 import { isValidCommandEndpoint } from "./command-endpoint";
+import { requestCommand } from "../commands/usecases";
 
 type Db = NodePgDatabase<typeof schema>;
 
@@ -67,4 +70,147 @@ export async function rotateProjectCredential(db: Db, projectId: string, environ
     await insertCredential(tx, { projectId, environment, tokenPrefix: generated.prefix, tokenHash: generated.hash });
   });
   return generated.token;
+}
+
+export async function pauseProject(
+  db: Db,
+  projectId: string,
+  options: { reason?: string; durationMinutes?: number; requestedBy?: string } = {},
+  now = new Date(),
+) {
+  const project = await findProjectById(db, projectId);
+  if (!project) return null;
+
+  const pausedUntil = options.durationMinutes && options.durationMinutes > 0
+    ? new Date(now.getTime() + options.durationMinutes * 60_000)
+    : null;
+  const supportsPauseCmd = project.capabilities.includes("runtime.pause");
+  const nextControlState = supportsPauseCmd ? "PAUSE_REQUESTED" : "PAUSED";
+
+  const updated = await updateProject(db, project.id, {
+    controlState: nextControlState,
+    pausedAt: now,
+    pausedUntil,
+    pauseReason: options.reason?.trim() || null,
+  });
+
+  let command = null;
+  if (supportsPauseCmd) {
+    command = await requestCommand(db, {
+      projectId: project.id,
+      environment: project.environment,
+      capability: "runtime.pause",
+      arguments: {
+        ...(options.reason?.trim() ? { reason: options.reason.trim() } : {}),
+        ...(pausedUntil ? { until: pausedUntil.toISOString() } : {}),
+      },
+      validUntil: new Date(now.getTime() + 15 * 60_000),
+      requestedBy: options.requestedBy ?? "operator",
+    });
+  }
+
+  await db.insert(schema.events).values({
+    eventId: `ctrl-pause-${project.id}-${now.getTime()}-${randomUUID().slice(0, 8)}`,
+    schemaVersion: 1,
+    projectId: project.id,
+    environment: project.environment,
+    type: "project.paused",
+    occurredAt: now,
+    data: {
+      reason: options.reason?.trim() || null,
+      pausedUntil: pausedUntil?.toISOString() || null,
+      requestedBy: options.requestedBy ?? "operator",
+    },
+  }).onConflictDoNothing();
+
+  return { project: updated ? toPublicProject(updated) : null, command };
+}
+
+export async function resumeProject(
+  db: Db,
+  projectId: string,
+  options: { reason?: string; requestedBy?: string; isAuto?: boolean } = {},
+  now = new Date(),
+) {
+  const project = await findProjectById(db, projectId);
+  if (!project) return null;
+
+  const updated = await updateProject(db, project.id, {
+    controlState: "ACTIVE",
+    pausedAt: null,
+    pausedUntil: null,
+    pauseReason: null,
+    lastResumedAt: now,
+  });
+
+  let command = null;
+  if (project.capabilities.includes("runtime.resume")) {
+    command = await requestCommand(db, {
+      projectId: project.id,
+      environment: project.environment,
+      capability: "runtime.resume",
+      arguments: {
+        ...(options.reason?.trim() ? { reason: options.reason.trim() } : {}),
+      },
+      validUntil: new Date(now.getTime() + 15 * 60_000),
+      requestedBy: options.requestedBy ?? (options.isAuto ? "auto_ttl" : "operator"),
+    });
+  }
+
+  await db.insert(schema.events).values({
+    eventId: `ctrl-resume-${project.id}-${now.getTime()}-${randomUUID().slice(0, 8)}`,
+    schemaVersion: 1,
+    projectId: project.id,
+    environment: project.environment,
+    type: options.isAuto ? "project.auto_resumed" : "project.resumed",
+    occurredAt: now,
+    data: {
+      reason: options.reason?.trim() || null,
+      requestedBy: options.requestedBy ?? (options.isAuto ? "auto_ttl" : "operator"),
+    },
+  }).onConflictDoNothing();
+
+  return { project: updated ? toPublicProject(updated) : null, command };
+}
+
+export async function startProject(
+  db: Db,
+  projectId: string,
+  options: { target?: string; store?: "ALL" | "PMS" | "TP6"; requestedBy?: string } = {},
+  now = new Date(),
+) {
+  const project = await findProjectById(db, projectId);
+  if (!project) return null;
+  if (project.controlState === "PAUSED" || project.controlState === "PAUSE_REQUESTED") {
+    throw new Error("project_is_paused");
+  }
+  const command = await requestCommand(db, {
+    projectId: project.id,
+    environment: project.environment,
+    capability: "runtime.start",
+    arguments: {
+      ...(options.target ? { target: options.target } : {}),
+      ...(options.store ? { store: options.store } : {}),
+    },
+    validUntil: new Date(now.getTime() + 15 * 60_000),
+    requestedBy: options.requestedBy ?? "operator",
+  });
+  return { project: toPublicProject(project), command };
+}
+
+export async function autoResumeExpiredProjects(db: Db, now = new Date()) {
+  const expired = await db
+    .select({ id: schema.projects.id })
+    .from(schema.projects)
+    .where(
+      and(
+        inArray(schema.projects.controlState, ["PAUSED", "PAUSE_REQUESTED"]),
+        isNotNull(schema.projects.pausedUntil),
+        lte(schema.projects.pausedUntil, now),
+      ),
+    );
+  for (const row of expired) {
+    await resumeProject(db, row.id, { reason: "Auto-resumed after pause TTL expired", isAuto: true }, now);
+  }
+  return expired.length;
 }

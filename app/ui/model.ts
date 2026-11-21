@@ -22,6 +22,11 @@ export type Project = {
   expectedIntervalSeconds: number | null;
   gracePeriodSeconds: number | null;
   targetRtoMinutes: number | null;
+  controlState?: string;
+  pausedAt?: string | null;
+  pausedUntil?: string | null;
+  pauseReason?: string | null;
+  lastResumedAt?: string | null;
 };
 export type Activity = {
   id: string;
@@ -177,10 +182,14 @@ export function globalSignal(
       tone: "neutral",
     };
 
+  const activeProjects = projects.filter(
+    (p) => p.controlState !== "PAUSED" && p.controlState !== "PAUSE_REQUESTED"
+  );
+
   const hasCriticalIncident = incidents.some(
     (i) => i.state !== "RESOLVED" && ["HIGH", "CRITICAL"].includes(i.severity)
   );
-  const hasFailingProject = projects.some(
+  const hasFailingProject = activeProjects.some(
     (p) => p.availability === "OFFLINE" || p.operationalHealth === "FAILING" || p.businessHealth === "FAILING"
   );
   const hasInfraCritical = infra?.latestSnapshot?.serviceState?.pressureState === "CRITICAL" ||
@@ -190,7 +199,7 @@ export function globalSignal(
     return { label: "ATTENTION REQUIRED", tone: "coral" };
 
   const hasUnresolvedIncident = incidents.some((i) => i.state !== "RESOLVED");
-  const hasDegradedProject = projects.some(
+  const hasDegradedProject = activeProjects.some(
     (p) => p.availability === "STALE" || p.operationalHealth === "DEGRADED" || p.businessHealth === "DEGRADED"
   );
   const infraFreshness = infra?.latestSnapshot?.observedAt
@@ -202,21 +211,22 @@ export function globalSignal(
   if (hasUnresolvedIncident || hasDegradedProject || hasInfraDegraded)
     return { label: "SIGNALS DEGRADED", tone: "orange" };
 
-  const hasRecoveringProject = projects.some(
+  const hasRecoveringProject = activeProjects.some(
     (p) => p.operationalHealth === "RECOVERING" || p.businessHealth === "RECOVERING"
   );
   if (hasRecoveringProject)
     return { label: "RECOVERY IN PROGRESS", tone: "cyan" };
 
-  const hasAwaitingVerificationProject = projects.some(
+  const hasAwaitingVerificationProject = activeProjects.some(
     (p) => p.operationalHealth === "AWAITING_VERIFICATION" || p.businessHealth === "AWAITING_VERIFICATION"
   );
   if (hasAwaitingVerificationProject)
     return { label: "VERIFICATION PENDING", tone: "cyan" };
 
   if (!projects.length) return { label: "AWAITING TELEMETRY", tone: "neutral" };
+  if (!activeProjects.length) return { label: "ALL PROJECTS PAUSED", tone: "neutral" };
 
-  const allProjectsNominal = projects.every(
+  const allProjectsNominal = activeProjects.every(
     (p) =>
       p.availability === "ONLINE" &&
       p.operationalHealth === "HEALTHY" &&

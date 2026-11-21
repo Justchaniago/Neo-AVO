@@ -1,5 +1,5 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 
 import * as schema from "../db/schema";
 import { createIncident, createNotification, findDeduplicatedIncident, findOpenIncidentByKey, resolveIncident, updateIncident } from "./repository";
@@ -19,7 +19,8 @@ export async function recordIncidentForEvent(db: Db, project: IncidentProject, e
   const existing = await findDeduplicatedIncident(db, project.id, project.environment, trigger.dedupKey);
   const incident = existing ? await updateIncident(db, existing.id, trigger, event.id, now) : await createIncident(db, project.id, project.environment, trigger, event.id, now);
   if (!incident) return null;
-  if (!existing && shouldNotifyImmediately(trigger.severity)) await createNotification(db, { incidentId: incident.id, kind: "initial", dedupKey: `${incident.id}:initial`, severity: trigger.severity, message: telegramMessage(incident) });
+  const isPaused = project.controlState === "PAUSED" || project.controlState === "PAUSE_REQUESTED";
+  if (!existing && shouldNotifyImmediately(trigger.severity) && (!isPaused || event.type === "event.quarantined")) await createNotification(db, { incidentId: incident.id, kind: "initial", dedupKey: `${incident.id}:initial`, severity: trigger.severity, message: telegramMessage(incident) });
   if (!existing && isAnalysisEligible(incident.severity, incident.type)) await createAnalysisIfAbsent(db, incident.id);
   return incident;
 }
@@ -117,4 +118,53 @@ export async function manuallyResolveIncident(
     .onConflictDoNothing();
 
   return resolved;
+}
+
+/** Marks all non-resolved incidents as read & resolved, and clears hanging error/unprocessed events. */
+export async function resolveAllIncidentsAndEvents(
+  db: Db,
+  options: { projectId?: string; resolutionNote?: string } = {},
+  now = new Date(),
+) {
+  const note = options.resolutionNote?.trim() || "Bulk resolved from Settings";
+
+  const incidentWhere = options.projectId
+    ? and(eq(schema.incidents.projectId, options.projectId), ne(schema.incidents.state, "RESOLVED"))
+    : ne(schema.incidents.state, "RESOLVED");
+
+  const resolvedIncidents = await db
+    .update(schema.incidents)
+    .set({
+      state: "RESOLVED",
+      acknowledgedAt: sql`COALESCE(${schema.incidents.acknowledgedAt}, ${now})`,
+      resolvedAt: now,
+      resolutionReason: note,
+      updatedAt: now,
+    })
+    .where(incidentWhere)
+    .returning({ id: schema.incidents.id });
+
+  const eventHangCondition = or(
+    isNull(schema.events.processedAt),
+    isNotNull(schema.events.processingError),
+    isNotNull(schema.events.quarantinedAt),
+  );
+  const eventWhere = options.projectId
+    ? and(eq(schema.events.projectId, options.projectId), eventHangCondition)
+    : eventHangCondition;
+
+  const clearedEvents = await db
+    .update(schema.events)
+    .set({
+      processedAt: sql`COALESCE(${schema.events.processedAt}, ${now})`,
+      processingError: null,
+      quarantinedAt: null,
+    })
+    .where(eventWhere)
+    .returning({ id: schema.events.id });
+
+  return {
+    resolvedIncidentCount: resolvedIncidents.length,
+    clearedEventCount: clearedEvents.length,
+  };
 }

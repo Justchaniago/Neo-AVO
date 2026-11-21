@@ -61,6 +61,8 @@ export async function evaluateExpectedExecutions(db: Db, now = new Date()) {
         if (existing) continue;
         const [project] = await tx.select().from(schema.projects).where(eq(schema.projects.id, contract.projectId)).limit(1);
         if (!project) continue;
+        if (project.controlState === "PAUSED" || project.controlState === "PAUSE_REQUESTED") continue;
+        if (project.lastResumedAt && expectedAt.getTime() < project.lastResumedAt.getTime()) continue;
         const recentSuccess = await tx.select({ id: schema.events.id, data: schema.events.data }).from(schema.events).where(and(eq(schema.events.projectId, project.id), eq(schema.events.type, contract.expectedEventType), gte(schema.events.occurredAt, expectedAt), lte(schema.events.occurredAt, now))).limit(20);
         if (recentSuccess.some((event) => matchesContractMetadata(event.data, contract.metadata))) continue;
         const [occurrence] = await tx.insert(schema.expectedExecutionOccurrences).values({ contractId: contract.id, expectedAt, missedAt: now }).onConflictDoNothing({ target: [schema.expectedExecutionOccurrences.contractId, schema.expectedExecutionOccurrences.expectedAt] }).returning();
