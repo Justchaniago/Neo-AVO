@@ -8,7 +8,7 @@ import { getTelemetryFreshness } from "../model";
 import { ResourceLineChart } from "../resource-chart";
 import { CloudObserverSurface } from "../cloud-observer";
 import { blastRadiusFactRows, episodeFactRows, serviceFactRows } from "../infrastructure-panels";
-import { loadAverages, serviceRows, serviceSummary } from "../../../src/ops/infrastructure-view";
+import { loadAverages, serviceRows, serviceSummary, type PressureEpisode } from "../../../src/ops/infrastructure-view";
 
 export function MobileInfrastructure() {
   const [range, setRange] = useState<"1h" | "6h" | "24h" | "7d" | "30d">("24h");
@@ -17,6 +17,7 @@ export function MobileInfrastructure() {
     monitoredServices?: Array<{ name: string; displayName: string; projectAssociation: string; criticality: string; status?: string }>;
     latestSnapshot?: { cpuPercent: number; memoryPercent: number; diskPercent: number; serviceState?: Record<string, unknown>; observedAt: string };
     history?: Array<{ cpuPercent: number; memoryPercent: number; diskPercent: number; pressureStatePeak?: string; observedAt: string }>;
+    episodes?: PressureEpisode[];
   } | null>(null);
   const [infraFailed, setInfraFailed] = useState(false);
 
@@ -170,7 +171,7 @@ export function MobileInfrastructure() {
       <section className="mobile-section">
         <h2 className="mobile-section-title">05 / Pressure Episodes ({range})</h2>
         <div className="mobile-card">
-          <Facts rows={episodeFactRows(infra?.history, range, Boolean(infra))} />
+          <Facts rows={episodeFactRows(infra?.episodes, range, Boolean(infra))} />
         </div>
       </section>
     </div>

@@ -12,14 +12,6 @@ export interface ServiceRow extends ServiceDefinition {
   shared: boolean;
 }
 
-export interface HistoryPoint {
-  cpuPercent: number;
-  memoryPercent: number;
-  diskPercent: number;
-  pressureStatePeak?: string;
-  observedAt: string;
-}
-
 export interface PressureEpisode {
   startedAt: string;
   endedAt: string;
@@ -68,30 +60,60 @@ export function loadAverages(serviceState: unknown): [number, number, number] | 
   return values.every((value) => typeof value === "number" && Number.isFinite(value)) ? (values as [number, number, number]) : null;
 }
 
-/** Groups consecutive non-NORMAL history points (oldest first) into pressure episodes, newest first. */
-export function pressureEpisodes(history: HistoryPoint[] | undefined): PressureEpisode[] {
-  const episodes: PressureEpisode[] = [];
-  let current: PressureEpisode | null = null;
-  for (const point of history ?? []) {
-    const peak = point.pressureStatePeak;
-    if (peak === "WARNING" || peak === "CRITICAL") {
-      if (!current) {
-        current = { startedAt: point.observedAt, endedAt: point.observedAt, ongoing: true, peakState: peak, peakCpuPercent: point.cpuPercent, peakMemoryPercent: point.memoryPercent };
-      } else {
-        current.endedAt = point.observedAt;
-        if (peak === "CRITICAL") current.peakState = "CRITICAL";
-        current.peakCpuPercent = Math.max(current.peakCpuPercent, point.cpuPercent);
-        current.peakMemoryPercent = Math.max(current.peakMemoryPercent, point.memoryPercent);
-      }
-    } else if (current) {
-      current.ongoing = false;
-      current.endedAt = point.observedAt;
-      episodes.push(current);
-      current = null;
+export interface PressurePoint {
+  observedAt: string;
+  pressureState: string;
+  cpuPercent: number;
+  memoryPercent: number;
+}
+
+/**
+ * Groups pressured readings (WARNING/CRITICAL only, any order) into episodes, newest first.
+ * Readings closer than 2.5 sampling intervals belong to the same episode. `intervalMs` is also the
+ * span one reading covers, so aggregate buckets extend the episode to the end of their bucket.
+ * An episode is ongoing only while the live state is still pressured and its last reading is current.
+ */
+export function pressureEpisodes(
+  points: PressurePoint[],
+  options: { intervalMs: number; bucketed: boolean; currentlyPressured: boolean; now: number },
+): PressureEpisode[] {
+  const sorted = points
+    .filter((point) => point.pressureState === "WARNING" || point.pressureState === "CRITICAL")
+    .map((point) => ({ ...point, at: new Date(point.observedAt).getTime() }))
+    .sort((a, b) => a.at - b.at);
+  const maxGap = options.intervalMs * 2.5;
+  const span = options.bucketed ? options.intervalMs : 0;
+  const episodes: Array<PressureEpisode & { lastAt: number }> = [];
+  for (const point of sorted) {
+    const current = episodes[episodes.length - 1];
+    if (current && point.at - current.lastAt <= maxGap) {
+      current.lastAt = point.at;
+      if (point.pressureState === "CRITICAL") current.peakState = "CRITICAL";
+      current.peakCpuPercent = Math.max(current.peakCpuPercent, point.cpuPercent);
+      current.peakMemoryPercent = Math.max(current.peakMemoryPercent, point.memoryPercent);
+    } else {
+      episodes.push({
+        startedAt: point.observedAt,
+        endedAt: point.observedAt,
+        ongoing: false,
+        peakState: point.pressureState as "WARNING" | "CRITICAL",
+        peakCpuPercent: point.cpuPercent,
+        peakMemoryPercent: point.memoryPercent,
+        lastAt: point.at,
+      });
     }
   }
-  if (current) episodes.push(current);
-  return episodes.reverse();
+  return episodes
+    .map(({ lastAt, ...episode }, index) => {
+      const endMs = Math.min(lastAt + span, options.now);
+      const isLatest = index === episodes.length - 1;
+      return {
+        ...episode,
+        endedAt: new Date(endMs).toISOString(),
+        ongoing: isLatest && options.currentlyPressured && options.now - lastAt <= span + maxGap,
+      };
+    })
+    .reverse();
 }
 
 export function formatDuration(startedAt: string, endedAt: string): string {

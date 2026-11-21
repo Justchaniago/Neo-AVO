@@ -7,8 +7,7 @@ import { Badge, Time, percent } from "./primitives";
 import {
   blastRadius,
   formatDuration,
-  pressureEpisodes,
-  type HistoryPoint,
+  type PressureEpisode,
   type ServiceRow,
 } from "../../src/ops/infrastructure-view";
 
@@ -40,8 +39,8 @@ export function blastRadiusFactRows(hostName: string, rows: ServiceRow[]): Row[]
   ];
 }
 
-export function episodeFactRows(history: HistoryPoint[] | undefined, range: string, loaded: boolean): Row[] {
-  const episodes = pressureEpisodes(history);
+export function episodeFactRows(episodes: PressureEpisode[] | undefined, range: string, loaded: boolean): Row[] {
+  episodes = episodes ?? [];
   const rows: Row[] = episodes.slice(0, 5).map((episode, index) => [
     `Episode ${index + 1}`,
     <span key={episode.startedAt} className="service-fact">

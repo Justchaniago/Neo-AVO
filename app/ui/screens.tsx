@@ -48,7 +48,7 @@ import { MobileIntelligence } from "./mobile/intelligence";
 import { ResourceLineChart } from "./resource-chart";
 import { CloudObserverSurface } from "./cloud-observer";
 import { blastRadiusFactRows, episodeFactRows, serviceFactRows } from "./infrastructure-panels";
-import { loadAverages, serviceRows, serviceSummary } from "../../src/ops/infrastructure-view";
+import { loadAverages, serviceRows, serviceSummary, type PressureEpisode } from "../../src/ops/infrastructure-view";
 
 function Refresh() {
   const { refresh, checkedAt, refreshing, online, stale } = useDashboard();
@@ -1383,6 +1383,7 @@ export function InfrastructureScreen() {
     monitoredServices?: Array<{ name: string; displayName: string; projectAssociation: string; criticality: string; status?: string }>;
     latestSnapshot?: { cpuPercent: number; memoryPercent: number; diskPercent: number; serviceState?: Record<string, unknown>; observedAt: string };
     history?: Array<{ cpuPercent: number; memoryPercent: number; diskPercent: number; pressureStatePeak?: string; observedAt: string }>;
+    episodes?: PressureEpisode[];
   } | null>(null);
   const [infraFailed, setInfraFailed] = useState(false);
 
@@ -1529,7 +1530,7 @@ export function InfrastructureScreen() {
           </Panel>
 
           <Panel className="infra-full-panel" label="06 / Pressure Episodes & Incident Context" title={`Pressure Episodes: ${range}`}>
-            <Facts rows={episodeFactRows(infra?.history, range, Boolean(infra))} />
+            <Facts rows={episodeFactRows(infra?.episodes, range, Boolean(infra))} />
           </Panel>
         </div>
       </div>
