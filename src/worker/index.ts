@@ -10,6 +10,7 @@ import { log } from "../observability/logger";
 import { monitorProjectHealth } from "../health/monitor";
 import { evaluateExpectedExecutions } from "../ops/expected-executions";
 import { collectResourceSnapshot } from "../ops/resources";
+import { autoResumeExpiredProjects } from "../projects/usecases";
 
 const MAX_EVENTS_PER_TICK = 20;
 
@@ -51,6 +52,7 @@ export async function startWorker() {
       }
       if (Date.now() - lastResourceSnapshotAt >= 30_000) {
         try { await collectResourceSnapshot(db); } catch (error) { log("error", "resources", "snapshot_failed", { errorClass: error instanceof Error ? error.name : "unknown" }); }
+        try { await autoResumeExpiredProjects(db); } catch (error) { log("error", "projects", "auto_resume_failed", { errorClass: error instanceof Error ? error.name : "unknown" }); }
         lastResourceSnapshotAt = Date.now();
       }
       try { await dispatchOneTelegramNotification(db); } catch (error) { log("error", "telegram", "dispatch_failed", { errorClass: error instanceof Error ? error.name : "unknown" }); }

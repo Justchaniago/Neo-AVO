@@ -33,8 +33,14 @@ import {
 } from "./primitives";
 
 export function ProjectCard({ project: p }: { project: Project }) {
+  const isPaused = p.controlState === "PAUSED" || p.controlState === "PAUSE_REQUESTED";
   return (
-    <article className="project-card">
+    <article className={`project-card${isPaused ? " project-card--paused" : ""}`}>
+      {isPaused && (
+        <div className="project-paused-sign" aria-label="Project paused">
+          {p.controlState === "PAUSE_REQUESTED" ? "PAUSE REQUESTED" : "PAUSED"}
+        </div>
+      )}
       <div className="project-card-top">
         <span className="project-monogram">
           {p.name.slice(0, 2).toUpperCase()}
@@ -55,16 +61,16 @@ export function ProjectCard({ project: p }: { project: Project }) {
         {p.runtimeMode.replaceAll("_", " ")} ·{" "}
         {p.healthStrategy.replaceAll("_", " ")}
       </p>
-      <div className="health-dimensions-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", margin: "14px 0" }}>
-        <div>
+      <div className="health-dimensions-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px", margin: "14px 0" }}>
+        <div style={{ minWidth: 0 }}>
           <span className="eyebrow" style={{ display: "block", fontSize: "0.65rem", marginBottom: "4px" }}>AVAILABILITY</span>
           <Availability value={p.availability} />
         </div>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <span className="eyebrow" style={{ display: "block", fontSize: "0.65rem", marginBottom: "4px" }}>OPERATIONAL</span>
           <Badge value={p.operationalHealth} />
         </div>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <span className="eyebrow" style={{ display: "block", fontSize: "0.65rem", marginBottom: "4px" }}>BUSINESS</span>
           <Badge value={p.businessHealth} />
         </div>
@@ -79,7 +85,7 @@ export function ProjectCard({ project: p }: { project: Project }) {
         <div>
           <span>LAST OPERATIONAL</span>: <Time value={p.lastOperationalAt} />
         </div>
-        {(p.operationalHealth === "AWAITING_VERIFICATION" || p.businessHealth === "AWAITING_VERIFICATION") && (
+        {!isPaused && (p.operationalHealth === "AWAITING_VERIFICATION" || p.businessHealth === "AWAITING_VERIFICATION") && (
           <div style={{ marginTop: "4px", fontSize: "0.75rem", color: "#006699" }}>
             <span>NEXT VERIFICATION</span>:{" "}
             {p.expectedNextExecutionAt ? (

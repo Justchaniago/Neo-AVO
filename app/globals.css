@@ -755,12 +755,64 @@ main {
   gap: 24px;
 }
 .project-card {
+  position: relative;
   border: var(--line);
   border-radius: 8px;
   background: white;
   box-shadow: var(--shadow);
   padding: 22px;
   min-width: 0;
+}
+.project-card--paused {
+  background: #eae9e4;
+  border-style: dashed;
+  filter: grayscale(1);
+  opacity: 0.8;
+}
+.project-paused-sign {
+  position: absolute;
+  top: -11px;
+  right: 16px;
+  z-index: 2;
+  background: #27272a;
+  color: #fafafa;
+  border: 2px solid #09090b;
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 2px 2px 0 #09090b;
+}
+.health-dimensions-grid .badge {
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.2;
+  text-align: left;
+}
+/* Prevent flex/grid children and badges from overflowing card or panel borders */
+.panel,
+.card,
+.stat-card,
+.fact-card,
+.setting-row {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.panel > *,
+.grid > *,
+.projects-grid > *,
+.stats-grid > *,
+.facts-grid > * {
+  min-width: 0;
+}
+.badge {
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.2;
 }
 .project-card h3 {
   font-size: 25px;

@@ -8,6 +8,7 @@ export type IncidentProject = {
   id: string;
   environment: string;
   criticality: string;
+  controlState?: string;
   expectedNextExecutionAt: Date | null;
   gracePeriodSeconds: number | null;
   lastSuccessfulExecutionAt: Date | null;

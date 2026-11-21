@@ -16,6 +16,17 @@ export const commandArguments = {
   "task.retry": z.object({ taskId: z.string().trim().min(1).max(200) }).strict(),
   "task.cancel": z.object({ taskId: z.string().trim().min(1).max(200) }).strict(),
   "worker.restart": z.object({ workerId: z.string().trim().min(1).max(200).optional() }).strict(),
+  "runtime.pause": z.object({
+    reason: z.string().trim().max(500).optional(),
+    until: z.string().datetime({ offset: true }).optional(),
+  }).strict(),
+  "runtime.resume": z.object({
+    reason: z.string().trim().max(500).optional(),
+  }).strict(),
+  "runtime.start": z.object({
+    target: z.string().trim().max(100).optional(),
+    store: z.enum(["ALL", "PMS", "TP6"]).optional(),
+  }).strict(),
   "qra.audit_missing_dates": z.object({ month: calendarMonth, store: z.enum(["ALL", "PMS", "TP6"]) }).strict(),
   "qra.resolve_missing_dates": z.object({
     month: calendarMonth,
