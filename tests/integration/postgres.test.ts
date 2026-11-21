@@ -12,7 +12,7 @@ import { acknowledgeIncident, recordIncidentForEvent } from "../../src/incidents
 import { createIncident, resolveIncident } from "../../src/incidents/repository";
 import { incidentTrigger } from "../../src/incidents/types";
 import { and, eq, isNull, ne } from "drizzle-orm";
-import { claimPullCommands } from "../../src/commands/repository";
+import { claimPullCommands, markPushAttempt } from "../../src/commands/repository";
 
 const enabled = process.env.RUN_POSTGRES_INTEGRATION === "1" && Boolean(process.env.PG_INTEGRATION_DATABASE_URL);
 const suite = enabled ? describe : describe.skip;
@@ -50,6 +50,15 @@ suite("real PostgreSQL M3/M4 integration", () => {
   });
 
   afterAll(async () => { await pool.end(); });
+
+  it("persists endpoint refusals as terminal FAILED without retrying", async () => {
+    const [command] = await db.insert(commands).values({ commandId: "cmd-refused-endpoint", projectId, environment: "production", capability: "task.retry", arguments: { taskId: "task-1" }, requestedAt: new Date(), validUntil: new Date(Date.now() + 60_000), deliveryMode: "PUSH", deliveryAttempts: 1, claimToken: "refused-claim" }).returning();
+    const failed = await markPushAttempt(db, command.id, "refused-claim", false, "command_endpoint_refused: private_or_reserved_address", true);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.failureReason).toBe("command_endpoint_refused: private_or_reserved_address");
+    expect(failed.nextDeliveryAt).toBeNull();
+    expect(failed.claimToken).toBeNull();
+  });
 
   it("applies every migration and preserves credential uniqueness through rotation", async () => {
     const first = await db.select().from(projectCredentials).where(eq(projectCredentials.projectId, projectId));

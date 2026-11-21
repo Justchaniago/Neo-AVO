@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidCommandEndpoint } from "./command-endpoint";
 
 export const runtimeModes = ["always_on", "on_demand", "scheduled", "hybrid"] as const;
 export const healthStrategies = ["heartbeat", "execution_based", "synthetic", "external"] as const;
@@ -12,7 +13,7 @@ export const projectConfigSchema = z.object({
   healthStrategy: z.enum(healthStrategies),
   capabilities: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
   commandDeliveryMode: z.enum(commandDeliveryModes).default("PULL"),
-  commandEndpointUrl: z.string().url().optional(),
+  commandEndpointUrl: z.string().url().refine((value) => isValidCommandEndpoint(value), "command_endpoint_requires_https_in_production").optional(),
   commandAuthSecret: z.string().min(16).max(4096).optional(),
   criticality: z.enum(["low", "normal", "high", "critical"]).default("normal"),
   targetRtoMinutes: z.number().int().positive().max(525600).optional(),

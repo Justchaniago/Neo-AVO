@@ -5,6 +5,10 @@
 - [ ] Backup retention and failure detection configured
 - [ ] Restore tested into a clean database
 - [ ] Production environment validated
+- [ ] Unique `NEO_AVO_OPERATOR_USERNAME` and `NEO_AVO_OPERATOR_PASSWORD` (minimum 16 characters) provisioned before deploying operator authentication
+- [ ] HTTPS enforced; dashboard without credentials returns 401 with a Basic challenge, valid credentials load the dashboard
+- [ ] Public health and project-token event/poll/ack/result/config/rotation routes verified without operator credentials
+- [ ] PUSH endpoints use HTTPS and resolve only to public addresses; `NEO_AVO_ALLOW_PRIVATE_COMMAND_ENDPOINTS=false`
 - [ ] Web service supervised
 - [ ] Worker service supervised separately
 - [ ] Reverse proxy and HTTPS configured

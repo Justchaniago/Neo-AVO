@@ -22,10 +22,10 @@ export async function claimPushCommand(db: Db, now = new Date(), leaseMs = 30_00
   });
 }
 
-export async function markPushAttempt(db: Db, id: string, claimToken: string, success: boolean, error?: string) {
+export async function markPushAttempt(db: Db, id: string, claimToken: string, success: boolean, error?: string, terminal = false) {
   const bounded = error?.slice(0, errorLimit) ?? null;
   const [current] = await db.select().from(commands).where(and(eq(commands.id, id), eq(commands.claimToken, claimToken))).limit(1);
-  const [row] = await db.update(commands).set({ nextDeliveryAt: success ? null : new Date(Date.now() + 30_000), failureReason: success ? null : bounded, claimToken: null, claimExpiresAt: null, status: success ? "SENT" : current && current.deliveryAttempts >= 3 ? "FAILED" : "SENT", updatedAt: new Date() }).where(and(eq(commands.id, id), eq(commands.claimToken, claimToken))).returning();
+  const [row] = await db.update(commands).set({ nextDeliveryAt: success || terminal ? null : new Date(Date.now() + 30_000), failureReason: success ? null : bounded, claimToken: null, claimExpiresAt: null, status: success ? "SENT" : terminal || (current && current.deliveryAttempts >= 3) ? "FAILED" : "SENT", updatedAt: new Date() }).where(and(eq(commands.id, id), eq(commands.claimToken, claimToken))).returning();
   return row;
 }
 
