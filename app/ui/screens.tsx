@@ -1380,13 +1380,17 @@ export function InfrastructureScreen() {
     latestSnapshot?: { cpuPercent: number; memoryPercent: number; diskPercent: number; serviceState?: Record<string, unknown>; observedAt: string };
     history?: Array<{ cpuPercent: number; memoryPercent: number; diskPercent: number; pressureStatePeak?: string; observedAt: string }>;
   } | null>(null);
+  const [infraFailed, setInfraFailed] = useState(false);
 
   useEffect(() => {
     const load = () => {
       fetch(`/api/v1/infrastructure?range=${range}`)
-        .then((res) => res.json())
-        .then(setInfra)
-        .catch(() => null);
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`infrastructure ${res.status}`))))
+        .then((data) => {
+          setInfra(data);
+          setInfraFailed(false);
+        })
+        .catch(() => setInfraFailed(true));
     };
     load();
     const interval = setInterval(load, 5000);
@@ -1482,7 +1486,9 @@ export function InfrastructureScreen() {
                 ? `Loaded ${infra.history.length} bounded data points for time range ${range}. Source: ${
                     range === "7d" ? "5-minute aggregates" : range === "30d" ? "1-hour aggregates" : "raw 30s snapshots"
                   }.`
-                : infra
+                : infraFailed
+                  ? "Resource history could not be loaded. Retrying…"
+                  : infra
                   ? `No resource history has been recorded for the last ${range}.`
                   : "Loading resource history telemetry…"}
             </p>
