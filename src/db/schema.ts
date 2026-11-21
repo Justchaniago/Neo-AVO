@@ -434,3 +434,10 @@ export const cloudObserverState = pgTable("cloud_observer_state", {
 }));
 
 export type FinancialStatus = "ACTUAL" | "ESTIMATED" | "DELAYED" | "UNKNOWN";
+
+export const operatorCredentials = pgTable("operator_credentials", {
+  id: text("id").primaryKey(),
+  username: text("username").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

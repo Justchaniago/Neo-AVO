@@ -56,7 +56,7 @@ npm run dev
 
 Buka `http://localhost:3000` pada browser Anda.
 
-Dashboard dan API administratif menggunakan HTTP Basic auth dengan `NEO_AVO_OPERATOR_USERNAME` dan `NEO_AVO_OPERATOR_PASSWORD` (minimal 16 karakter). Nilai `.env.example` hanya untuk development; provision kredensial unik sebelum deploy produksi dan wajib gunakan HTTPS. Tanpa konfigurasi ini, route terlindungi mengembalikan 503 (fail closed). Health check dan route integrasi project tetap memakai kontrak autentikasi sebelumnya. PUSH endpoint wajib HTTPS di produksi dan tidak boleh mengarah ke alamat privat; mock lokal memerlukan `NEO_AVO_ALLOW_PRIVATE_COMMAND_ENDPOINTS=true` pada worker non-produksi. Lihat [production runbook](docs/M8_PRODUCTION_RUNBOOK.md).
+Dashboard dan API administratif menggunakan HTTP Basic auth dengan `NEO_AVO_OPERATOR_USERNAME` dan `NEO_AVO_OPERATOR_PASSWORD` (minimal 16 karakter). Nilai `.env.example` hanya untuk development; provision kredensial unik sebelum deploy produksi dan wajib gunakan HTTPS. Tanpa konfigurasi ini, route terlindungi mengembalikan 503 (fail closed). Health check dan route integrasi project tetap memakai kontrak autentikasi sebelumnya. PUSH endpoint wajib HTTPS di produksi dan tidak boleh mengarah ke alamat privat; mock lokal memerlukan `NEO_AVO_ALLOW_PRIVATE_COMMAND_ENDPOINTS=true` pada worker non-produksi. Lihat [production runbook](docs/M8_PRODUCTION_RUNBOOK.md). Kredensial bisa diganti dari Settings → Access: nilai baru disimpan di PostgreSQL (password di-hash dengan scrypt) dan sejak itu menggantikan nilai env, yang hanya dipakai sampai penggantian pertama. Jika lupa password, hapus baris di tabel `operator_credentials` untuk kembali ke nilai env.
 
 ---
 

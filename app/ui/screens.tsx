@@ -4,6 +4,7 @@ import { Icon } from "./icons";
 
 import Link from "next/link";
 import { ProjectControls } from "./existing-controls";
+import { OperatorCredentialsControl } from "./operator-credentials-control";
 import { useEffect, useState } from "react";
 import { useActivity, useDashboard, useRead } from "./data";
 import {
@@ -1161,14 +1162,15 @@ export function SettingsScreen() {
       />
       <div className="settings-layout">
         <div className="settings-nav" aria-label="Settings sections">
-          {["Projects", "Notifications", "Integrations", "System"].map((t) => (
+          {["Projects", "Notifications", "Integrations", "System", "Access"].map((t) => (
             <button aria-pressed={tab === t} key={t} onClick={() => setTab(t)}>
               {t}
               <span><Icon name="arrow" /></span>
             </button>
           ))}
         </div>
-        <Panel label="Configuration / read-only" title={tab}>
+        <Panel label={tab === "Access" ? "Configuration / operator login" : "Configuration / read-only"} title={tab}>
+          {tab === "Access" && <OperatorCredentialsControl />}
           {tab === "Projects" &&
             (projects.error ? (
               <ErrorState retry={refresh} />

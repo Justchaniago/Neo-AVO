@@ -3,7 +3,7 @@ import pg from "pg";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 
 import { createDb } from "../../src/db/client";
-import { cloudResourceSnapshots, commands, events, incidentEvents, incidents, notifications, opsAnalyses, projectCredentials, projects, tasks } from "../../src/db/schema";
+import { cloudResourceSnapshots, commands, events, incidentEvents, incidents, notifications, operatorCredentials, opsAnalyses, projectCredentials, projects, tasks } from "../../src/db/schema";
 import { registerProject, rotateProjectCredential } from "../../src/projects/usecases";
 import { persistEventBatch } from "../../src/events/usecases";
 import { claimPendingEvent } from "../../src/worker/repository";
@@ -13,6 +13,8 @@ import { createIncident, resolveIncident } from "../../src/incidents/repository"
 import { incidentTrigger } from "../../src/incidents/types";
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { claimPullCommands, markPushAttempt } from "../../src/commands/repository";
+import { changeOperatorCredentials, findStoredCredentials } from "../../src/operator/credentials";
+import { verifyPassword } from "../../src/operator/password";
 
 const enabled = process.env.RUN_POSTGRES_INTEGRATION === "1" && Boolean(process.env.PG_INTEGRATION_DATABASE_URL);
 const suite = enabled ? describe : describe.skip;
@@ -35,6 +37,19 @@ suite("real PostgreSQL M3/M4 integration", () => {
     await migrate(db, { migrationsFolder: "./db/migrations" });
     const registered = await registerProject(db, { slug: "project-a", name: "Project A", environment: "production", runtimeMode: "always_on", healthStrategy: "heartbeat", capabilities: [], criticality: "normal", staleAfterSeconds: 60, offlineAfterSeconds: 300 });
     projectId = registered.project.id;
+  });
+
+  it("stores a changed operator login and requires the current password", async () => {
+    const env = { username: "operator", password: "environment-password-123" };
+    await expect(changeOperatorCredentials(db, { currentPassword: "wrong", newPassword: "first-new-password-1" }, env)).rejects.toThrow("current_password_incorrect");
+    expect(await findStoredCredentials(db)).toBeNull();
+    expect((await changeOperatorCredentials(db, { currentPassword: env.password, newPassword: "first-new-password-1" }, env)).username).toBe("operator");
+    await expect(changeOperatorCredentials(db, { currentPassword: env.password, newPassword: "second-new-password-2" }, env)).rejects.toThrow("current_password_incorrect");
+    expect((await changeOperatorCredentials(db, { currentPassword: "first-new-password-1", newUsername: "ferry", newPassword: "second-new-password-2" }, env)).username).toBe("ferry");
+    const stored = await findStoredCredentials(db);
+    expect(stored?.username).toBe("ferry");
+    expect(await verifyPassword("second-new-password-2", stored!.passwordHash)).toBe(true);
+    expect(await db.select().from(operatorCredentials)).toHaveLength(1);
   });
 
   it("round-trips fractional Cloud Observer CPU utilization", async () => {

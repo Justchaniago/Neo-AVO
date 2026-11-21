@@ -127,6 +127,13 @@
       "when": 1789450436055,
       "tag": "0017_brief_shooting_star",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795259587789,
+      "tag": "0018_operator_credentials",
+      "breakpoints": true
     }
   ]
 }
