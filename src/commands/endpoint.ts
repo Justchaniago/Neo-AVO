@@ -36,13 +36,24 @@ export function isBlockedCommandAddress(address: string): boolean {
     (words[0] & 0xffc0) === 0xfe80 || (words[0] & 0xff00) === 0xff00;
 }
 
-export async function assertSafeCommandEndpoint(value: string, allowPrivate = false, resolve = lookup) {
+export function parseCommandEndpoint(value: string, allowPrivate = false) {
   if (!isValidCommandEndpoint(value)) throw new CommandEndpointRefused("invalid_scheme_or_credentials");
   const url = new URL(value);
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
-  if (allowPrivate) return;
-  const addresses = isIP(hostname) ? [{ address: hostname }] : await resolve(hostname, { all: true, verbatim: true });
-  if (!addresses.length || addresses.some(({ address }) => isBlockedCommandAddress(address))) {
+  if (!allowPrivate && isIP(hostname) && isBlockedCommandAddress(hostname)) throw new CommandEndpointRefused("private_or_reserved_address");
+  return url;
+}
+
+export async function resolveCommandAddresses(hostname: string, allowPrivate = false, resolve = lookup) {
+  const family = isIP(hostname);
+  const addresses = family ? [{ address: hostname, family }] : await resolve(hostname, { all: true, verbatim: true });
+  if (!addresses.length || (!allowPrivate && addresses.some(({ address }) => isBlockedCommandAddress(address)))) {
     throw new CommandEndpointRefused("private_or_reserved_address");
   }
+  return addresses;
+}
+
+export async function assertSafeCommandEndpoint(value: string, allowPrivate = false, resolve = lookup) {
+  const url = parseCommandEndpoint(value, allowPrivate);
+  await resolveCommandAddresses(url.hostname.replace(/^\[|\]$/g, ""), allowPrivate, resolve);
 }
