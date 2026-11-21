@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { withConfiguredDb } from "../../../../../src/db/client";
+import { log } from "../../../../../src/observability/logger";
 import { changeCredentialsSchema, changeOperatorCredentials, resolveOperatorAuth } from "../../../../../src/operator/credentials";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "";
     if (message === "current_password_incorrect") return NextResponse.json({ error: message }, { status: 403 });
     if (message === "operator_auth_not_configured") return NextResponse.json({ error: message }, { status: 503 });
+    log("error", "operator-auth", "credentials_update_failed", { errorClass: error instanceof Error ? error.name : "unknown" });
     return NextResponse.json({ error: "credentials_update_failed" }, { status: 500 });
   }
 }

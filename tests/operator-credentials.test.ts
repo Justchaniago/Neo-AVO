@@ -63,6 +63,24 @@ describe("stored operator credentials", () => {
     expect(await response.json()).toEqual({ error: "operator_auth_unavailable" });
   });
 
+  it("stops accepting a cached login when a refresh fails", async () => {
+    vi.useFakeTimers();
+    try {
+      findFirst.mockResolvedValueOnce({ username: "ferry", passwordHash: await hashPassword(storedPassword), updatedAt: new Date() });
+      expect((await middleware(request(`ferry:${storedPassword}`))).headers.get("x-middleware-next")).toBe("1");
+      vi.advanceTimersByTime(11_000);
+      findFirst.mockRejectedValue(new Error("connection refused"));
+      expect((await middleware(request(`ferry:${storedPassword}`))).status).toBe(503);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not hash the password for a wrong username", async () => {
+    const auth = { kind: "stored" as const, username: "ferry", passwordHash: "scrypt$not-a-real-hash", updatedAt: new Date() };
+    expect(await verifyOperatorCredentials(auth, `nobody:${storedPassword}`)).toBe(false);
+  });
+
   it("never accepts unresolved auth states", async () => {
     expect(await verifyOperatorCredentials({ kind: "unconfigured" }, "a:b")).toBe(false);
     expect(await verifyOperatorCredentials({ kind: "unavailable" }, "a:b")).toBe(false);
