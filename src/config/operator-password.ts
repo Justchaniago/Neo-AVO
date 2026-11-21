@@ -1,0 +1,1 @@
+export const OPERATOR_PASSWORD_MIN_LENGTH = 5;

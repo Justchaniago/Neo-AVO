@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { beginAttempt, clearFailedAttempts, clientKey } from "../../../../../src/operator/attempts";
 import { resolveOperatorAuth, verifyOperatorCredentials } from "../../../../../src/operator/credentials";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, createSessionToken } from "../../../../../src/operator/session";
 
@@ -15,10 +16,15 @@ export async function POST(request: NextRequest) {
   if (auth.kind !== "stored" && auth.kind !== "env") {
     return NextResponse.json({ error: auth.kind === "unconfigured" ? "operator_auth_not_configured" : "operator_auth_unavailable" }, { status: 503, headers: noStore });
   }
+  const client = clientKey(request);
+  const attempt = beginAttempt(client);
+  if (typeof attempt === "number") return NextResponse.json({ error: "too_many_attempts" }, { status: 429, headers: { ...noStore, "Retry-After": String(attempt) } });
+
   const parsed = signInSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success || !(await verifyOperatorCredentials(auth, `${parsed.data.username}:${parsed.data.password}`))) {
     return NextResponse.json({ error: "invalid_credentials" }, { status: 401, headers: noStore });
   }
+  clearFailedAttempts(client);
   const response = NextResponse.json({ username: auth.username }, { headers: noStore });
   response.cookies.set(SESSION_COOKIE, createSessionToken(auth), { ...cookie, maxAge: SESSION_TTL_SECONDS });
   return response;

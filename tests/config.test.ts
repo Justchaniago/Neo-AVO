@@ -20,7 +20,7 @@ describe("environment configuration", () => {
   it("requires operator credentials in production and validates password length", () => {
     expect(() => validateProductionEnv({ DATABASE_URL: "postgresql://localhost/db" })).toThrow("NEO_AVO_OPERATOR_USERNAME");
     expect(() => validateProductionEnv({ DATABASE_URL: "postgresql://localhost/db", NEO_AVO_OPERATOR_USERNAME: "operator" })).toThrow("NEO_AVO_OPERATOR_PASSWORD");
-    expect(() => loadEnv({ NEO_AVO_OPERATOR_PASSWORD: "short" })).toThrow();
+    expect(() => loadEnv({ NEO_AVO_OPERATOR_PASSWORD: "abcd" })).toThrow();
     expect(() => loadEnv({ NEO_AVO_OPERATOR_USERNAME: "bad:user" })).toThrow();
     expect(loadEnv({}).NEO_AVO_ALLOW_PRIVATE_COMMAND_ENDPOINTS).toBe(false);
     expect(loadEnv({ NEO_AVO_ALLOW_PRIVATE_COMMAND_ENDPOINTS: "true" }).NEO_AVO_ALLOW_PRIVATE_COMMAND_ENDPOINTS).toBe(true);

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { credentialsEqual } from "../config/operator-auth";
+import { OPERATOR_PASSWORD_MIN_LENGTH } from "../config/operator-password";
 import { withConfiguredDb } from "../db/client";
 import * as schema from "../db/schema";
 import { log } from "../observability/logger";
@@ -27,13 +28,13 @@ const cache = globalThis as typeof globalThis & {
 export const changeCredentialsSchema = z.object({
   currentPassword: z.string().min(1).max(1024),
   newUsername: z.string().trim().min(1).max(100).regex(/^[^:]+$/).optional(),
-  newPassword: z.string().min(16).max(1024),
+  newPassword: z.string().min(OPERATOR_PASSWORD_MIN_LENGTH).max(1024),
 }).strict();
 
 function envCredentials() {
   const username = process.env.NEO_AVO_OPERATOR_USERNAME;
   const password = process.env.NEO_AVO_OPERATOR_PASSWORD;
-  return username && !username.includes(":") && password && password.length >= 16 ? { username, password } : null;
+  return username && !username.includes(":") && password && password.length >= OPERATOR_PASSWORD_MIN_LENGTH ? { username, password } : null;
 }
 
 function isMissingTable(error: unknown) {
