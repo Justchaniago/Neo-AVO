@@ -26,7 +26,7 @@ export function LoginForm() {
       const response = await fetch("/api/v1/operator/session", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password }),
+        body: JSON.stringify({ username, password }),
       });
       if (response.ok) return window.location.assign(safeNextPath(new URLSearchParams(window.location.search).get("next")));
       const body = (await response.json().catch(() => ({}))) as { error?: string };
